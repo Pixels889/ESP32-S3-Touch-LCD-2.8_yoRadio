@@ -1,0 +1,3 @@
+目的：增大spiffs空间，便于存放更多电台的playlist.csv文件（minimal spiffs空间只有190kb）
+
+方法：https://wiki.makerfabs.com/Larger%20flash%20and%20memory.html
