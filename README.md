@@ -16,4 +16,6 @@ https://www.waveshare.net/wiki/ESP32-S3-Touch-LCD-2.8
 为了存放更多电台，可以修改spiffs分区大小，如果你不需要就不必更改。
 目的：增大spiffs空间，便于存放更多电台的playlist.csv文件（minimal spiffs空间只有190kb）
 方法：https://wiki.makerfabs.com/Larger%20flash%20and%20memory.html
-![alt text](编译环境\微信图片_20260319155037_92_156.jpg) ![alt text](编译环境\编译环境.png) ![alt text](编译环境\开发板管理器esp32的版本2.0.11.png)
+![图 0](images/43481667f17970abf15f82cf2d999d471ba5031f5cef68a304f1362232094347.png)  
+![图 1](images/81fc1df6bf7910a693372467c41423b3e5929c25f1696494e19c31b77e993653.png)  
+![图 2](images/f0acab743abd15418191b2e56a2998a4fed323f9530576fac637c29a04bb42b0.png)  
