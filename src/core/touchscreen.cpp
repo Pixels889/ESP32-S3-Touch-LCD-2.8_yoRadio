@@ -2,7 +2,7 @@
 #pragma GCC optimize("O2")
 
 // 调试开关
-#define TOUCH_DEBUG 0
+#define TOUCH_DEBUG 1
 #if TOUCH_DEBUG
   #define TLOG(...) Serial.printf(__VA_ARGS__)
 #else
@@ -79,7 +79,10 @@ volatile bool TouchScreen::touchAvailable = false;
 
 #elif TS_MODEL == TS_MODEL_CST328
   #include "CSE_CST328.h"
-  CSE_CST328 ts = CSE_CST328(240, 320, &Wire1, TS_RST, TS_INT);
+  // 注意：CST328 构造函数参数是 (width, height)
+  // 屏幕实际尺寸是 320x240，但触摸屏的原始方向可能是240x320
+  // 需要根据实际硬件方向调整
+  CSE_CST328 ts = CSE_CST328(320, 240, &Wire1, TS_RST, TS_INT);
   typedef TS_Point TSPoint;
 #endif
 
@@ -124,7 +127,9 @@ void TouchScreen::init(uint16_t w, uint16_t h) {
   Wire1.begin(TS_SDA, TS_SCL);
   bool ok = ts.begin(); {
     Serial.printf("CST328 init: %s\n", ok ? "OK" : "FAIL");
-    ts.setRotation(config.store.fliptouch ? (1+2)%4 : 1);
+    // 设置初始旋转：90度（纠正90度顺时针偏移）
+    // 当 fliptouch 为 true 时，旋转270度（180度翻转 + 90度纠正）
+    ts.setRotation(config.store.fliptouch ? 3 : 1);
   
    // === 新增：配置中断 ===
     if (ok) {
@@ -150,7 +155,7 @@ void TouchScreen::flip() {
   ts.setRotation(config.store.fliptouch ? 0 : 2);
 #endif
 #if TS_MODEL == TS_MODEL_CST328
-  ts.setRotation(config.store.fliptouch ? (1+2)%4 : 1);
+  ts.setRotation(config.store.fliptouch ? 3 : 1);
 #endif
 }
 
@@ -197,10 +202,29 @@ void TouchScreen::loop()
     curY = p.y;
 #elif TS_MODEL == TS_MODEL_CST328
     TSPoint p = ts.getPoint();
-    // CST328 触摸屏坐标范围是 0-320，需要映射到实际屏幕坐标
- //   curX = map(p.x, 0, 320, 0, _width);
+    // CST328 库已经处理了旋转，返回的是屏幕坐标
+    TLOG("CST328 point: p.x=%d, p.y=%d, width=%d, height=%d\n", p.x, p.y, _width, _height);
     curX = p.x;
-    curY = map(p.y, 0, 320, 0, _height);
+    curY = p.y;
+    // 确保坐标在屏幕范围内
+    if (curX >= _width) curX = _width - 1;
+    if (curY >= _height) curY = _height - 1;
+#endif
+
+    // 如果触摸屏翻转，调整坐标
+    // 注意：CST328 库已经在 setRotation 中处理了翻转，所以不需要额外处理
+#if TS_MODEL == TS_MODEL_CST328
+    // CST328 库已经处理了旋转，不需要额外翻转
+    TLOG("CST328: curX=%d, curY=%d, fliptouch=%d (already rotated by library)\n", curX, curY, config.store.fliptouch);
+#else
+    if (config.store.fliptouch) {
+      TLOG("Before flip: curX=%d, curY=%d, width=%d, height=%d\n", curX, curY, _width, _height);
+      curX = _width - curX;
+      curY = _height - curY;
+      TLOG("After flip: curX=%d, curY=%d\n", curX, curY);
+    } else {
+      TLOG("No flip: curX=%d, curY=%d, fliptouch=%d\n", curX, curY, config.store.fliptouch);
+    }
 #endif
   }
 

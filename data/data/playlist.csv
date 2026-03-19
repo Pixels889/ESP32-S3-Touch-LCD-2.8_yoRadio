@@ -21,13 +21,13 @@ CCVT14	http://piccpndks.v.kcdnvip.com/audio/cctv14_2/index.m3u8	0
 CCVT15	http://piccpndks.v.kcdnvip.com/audio/cctv15_2/index.m3u8	0
 CCVT16	http://piccpndks.v.kcdnvip.com/audio/cctv16_2/index.m3u8	0
 CCVT17	http://piccpndks.v.kcdnvip.com/audio/cctv17_2/index.m3u8	0
-北京文艺广播	https://lhttp.qtfm.cn/live/333/64k.mp3	0
-北京体育广播	https://lhttp.qtfm.cn/live/335/64k.mp3	0
-北京交通广播	https://lhttp.qtfm.cn/live/336/64k.mp3	0
-北京新闻广播	https://lhttp.qtfm.cn/live/339/64k.mp3	0
-北京城市广播	https://lhttp.qtfm.cn/live/345/64k.mp3	0
-京津冀之声	https://lhttp.qtfm.cn/live/5022463/64k.mp3	0
-北京大兴人民广播电台FM986	https://lhttp.qtfm.cn/live/5021739/64k.mp3	0
+The big 80's	http://158.69.114.190:8024/stream	0
+Brian FM	http://ais-sa1.streamon.fm/7409_128k.aac	0
+RdMix Classic Rock	https://cast1.torontocast.com:4610/stream	0
+1000 HITS 80s	http://c2.auracast.net:8048/stream	0
+LM Radio	http://cast6.asurahosting.com/proxy/lmradioc/stream	0
+Under Ground 80's	http://ice5.somafm.com/u80s-128-mp3	0
+80s80s Remix	https://streams.80s80s.de/mix/aac-64/radiode/	0
 河南经典FM	https://lhttp.qtfm.cn/live/20207762/64k.mp3	0
 AI潮流音乐台	https://lhttp.qtfm.cn/live/15318300/64k.mp3	0
 运城综合广播	https://lhttp.qtfm.cn/live/1190/64k.mp3	0
@@ -1158,6 +1158,14 @@ FM100.6 双河综合广播	https://lhttp.qtfm.cn/live/20207772/64k.mp3	0
 奎屯市融媒体中心综合广播	https://lhttp.qtfm.cn/live/20500121/64k.mp3	0
 第三师图木舒克市人民广播电台	https://lhttp.qtfm.cn/live/20500135/64k.mp3	0
 FM96.0 阿拉尔人民广播电台新闻综合广播	https://lhttp.qtfm.cn/live/20500209/64k.mp3	0
+北京音乐广播	https://lhttp.qtfm.cn/live/332/64k.mp3	0
+北京文艺广播	https://lhttp.qtfm.cn/live/333/64k.mp3	0
+北京体育广播	https://lhttp.qtfm.cn/live/335/64k.mp3	0
+北京交通广播	https://lhttp.qtfm.cn/live/336/64k.mp3	0
+北京新闻广播	https://lhttp.qtfm.cn/live/339/64k.mp3	0
+北京城市广播	https://lhttp.qtfm.cn/live/345/64k.mp3	0
+京津冀之声	https://lhttp.qtfm.cn/live/5022463/64k.mp3	0
+北京大兴人民广播电台FM986	https://lhttp.qtfm.cn/live/5021739/64k.mp3	0
 1079音乐有话说	https://lhttp.qtfm.cn/live/20211619/64k.mp3	0
 流行音乐广播999正青春	https://lhttp.qtfm.cn/live/20211620/64k.mp3	0
 塔城市广播电视台FM104.2	https://lhttp.qtfm.cn/live/20500145/64k.mp3	0
@@ -1184,3 +1192,4 @@ FM893周口交通广播	https://lhttp.qtfm.cn/live/15318700/64k.mp3	0
 闵行人民广播电台	https://lhttp.qtfm.cn/live/20202/64k.mp3	0
 嘉兴交通广播	https://lhttp.qtfm.cn/live/1135/64k.mp3	0
 珠海斗门电台	https://lhttp.qtfm.cn/live/15318432/64k.mp3	0
+520电台-520星恋情感电台	https://lhttp.qtfm.cn/live/15318191/64k.mp3	0
