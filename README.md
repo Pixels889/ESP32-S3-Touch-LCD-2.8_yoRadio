@@ -1,5 +1,6 @@
-基于微雪ESP32-S3-Touch-LCD-2.8的yoradio。
 
+基于微雪ESP32-S3-Touch-LCD-2.8的yoradio。
+https://www.waveshare.net/wiki/ESP32-S3-Touch-LCD-2.8
 中文化处理（包括浏览器端）；
 为了听感连续，变化不突兀，音量调节做了映射。
 
@@ -15,5 +16,4 @@
 为了存放更多电台，可以修改spiffs分区大小，如果你不需要就不必更改。
 目的：增大spiffs空间，便于存放更多电台的playlist.csv文件（minimal spiffs空间只有190kb）
 方法：https://wiki.makerfabs.com/Larger%20flash%20and%20memory.html
-<img width="1147" height="943" alt="编译环境" src="https://github.com/user-attachments/assets/aad75236-9d60-406d-9220-be3e80a05e7d" />
-<img width="979" height="317" alt="开发板管理器esp32的版本2 0 11" src="https://github.com/user-attachments/assets/1a01c2a7-5c44-4f08-8d63-2e033eb0b64f" />
+![alt text](编译环境\微信图片_20260319155037_92_156.jpg) ![alt text](编译环境\编译环境.png) ![alt text](编译环境\开发板管理器esp32的版本2.0.11.png)
