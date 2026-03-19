@@ -101,6 +101,30 @@
 #define RTC_INT    9   // 可选，用于中断
 
 
+//麦克风
+// --- INMP441 I2S 引脚配置 ---
+// 根据你的连接定义：
+// INMP441 SD  ->  ESP32-S3 GPIO 50
+// INMP441 L/R ->  ESP32-S3 GPIO 49 (接GND选左声道)
+// INMP441 SCK ->  ESP32-S3 GPIO 18
+// INMP441 WS  ->  ESP32-S3 GPIO 15
+// ========== INMP441 麦克风配置 ==========
+//#define MIC_I2S_PORT        I2S_NUM_1           // 使用 I2S 控制器 1
+//#define MIC_BCLK            18                  // SCK 引脚
+//#define MIC_WS              15                  // WS 引脚
+//#define MIC_SD              50                  // SD 引脚
+//#define MIC_LR              49                  // L/R 引脚（控制声道）
+
+// 声道选择：0 = 左声道（L/R 接低电平），1 = 右声道（L/R 接高电平）
+//define MIC_CHANNEL_SELECT  0   // 请根据实际硬件连接修改：0-左，1-右
+
+// --- I2S 驱动配置参数 (示例值，可根据项目需要调整) ---
+//#define I2S_PORT I2S_NUM_1          // 使用 I2S 控制器 1
+//#define SAMPLE_RATE 16000            // 采样率 (Hz)，语音常用16kHz
+//#define I2S_BITS_PER_SAMPLE I2S_BITS_PER_SAMPLE_32BIT  // INMP441 输出24位数据，通常用32位读取 [citation:1][citation:8]
+
+
+
 
 // 启用 QMI8658 陀螺仪（你的开发板自带）
 //#define USE_QMI8658

@@ -34,10 +34,10 @@
 const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 3, WA_LEFT }, 140, true, MAX_WIDTH + TFT_FRAMEWDT, 5000, 1, 300 };
 
 // 歌曲标题1滚动 - 减慢速度：scrolldelta 4→2, scrolltime 30→60
-const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT, 48, 2, WA_LEFT }, 140, true, MAX_WIDTH - TITLE_FIX, 5000, 1, 300 };
+const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT, 52, 2, WA_LEFT }, 140, true, MAX_WIDTH - TITLE_FIX, 5000, 1, 300 };
 
 // 歌曲标题2滚动 - 减慢速度：scrolldelta 4→2, scrolltime 30→60
-const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT, 72, 2, WA_LEFT }, 140, true, MAX_WIDTH - TITLE_FIX, 5000, 1, 300 };
+const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT, 76, 2, WA_LEFT }, 140, true, MAX_WIDTH - TITLE_FIX, 5000, 1, 300 };
 
 // 播放列表滚动 - 减慢速度：scrolldelta 2→1, scrolltime 30→50
 const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 112, 2, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 1, 300 };
@@ -52,8 +52,8 @@ const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 240-TFT_FRAMEWDT-16
 const ScrollConfig weatherConf    PROGMEM = {{ 8, 87, 2, WA_LEFT }, 140, true, MAX_WIDTH, 0, 1, 150 };
 
 /* BACKGROUNDS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
-const FillConfig   metaBGConf     PROGMEM = {{ 0, 0, 0, WA_LEFT }, DSP_WIDTH, 38, false };
-const FillConfig   metaBGConfInv  PROGMEM = {{ 0, 38, 0, WA_LEFT }, DSP_WIDTH, 1, false };
+const FillConfig   metaBGConf     PROGMEM = {{ 0, 0, 0, WA_LEFT }, DSP_WIDTH, 42, false };
+const FillConfig   metaBGConfInv  PROGMEM = {{ 0, 42, 0, WA_LEFT }, DSP_WIDTH, 1, false };
 const FillConfig   volbarConf     PROGMEM = {{ TFT_FRAMEWDT, 240-TFT_FRAMEWDT-6, 0, WA_LEFT }, MAX_WIDTH, 6, true };
 const FillConfig  playlBGConf     PROGMEM = {{ 0, 107, 0, WA_LEFT }, DSP_WIDTH, 24, false };
 const FillConfig  heapbarConf     PROGMEM = {{ 0, 239, 0, WA_LEFT }, DSP_WIDTH, 1, false };
@@ -71,11 +71,11 @@ const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT, 130, 2, WA_CENTER };
 const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT, 154, 2, WA_CENTER };
 const WidgetConfig  clockConf     PROGMEM = { 8, 176, 0, WA_RIGHT };
 const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT, 100, 1, WA_LEFT };
-const WidgetConfig batteryVoltConf PROGMEM = { TFT_FRAMEWDT, 214, 1, WA_RIGHT };
+const WidgetConfig batteryVoltConf PROGMEM = { 0, 214, 1, WA_RIGHT };
 
 const WidgetConfig bootWdtConf    PROGMEM = { 0, 162, 1, WA_CENTER };
 const ProgressConfig bootPrgConf  PROGMEM = { 90, 14, 4 };
-const BitrateConfig fullbitrateConf PROGMEM = {{DSP_WIDTH-TFT_FRAMEWDT-34, 43, 2, WA_LEFT}, 42 };
+const BitrateConfig fullbitrateConf PROGMEM = {{DSP_WIDTH-TFT_FRAMEWDT-34, 47, 2, WA_LEFT}, 42 };
 
 /* BANDS  */                             /* { onebandwidth, onebandheight, bandsHspace, bandsVspace, numofbands, fadespeed } */
 const VUBandsConfig bandsConf     PROGMEM = { 24, 100, 4, 2, 10, 2 };
@@ -83,8 +83,8 @@ const VUBandsConfig bandsConf     PROGMEM = { 24, 100, 4, 2, 10, 2 };
 /* STRINGS  */
 const char         numtxtFmt[]    PROGMEM = "%d";
 const char           rssiFmt[]    PROGMEM = "WiFi %d";
-const char          iptxtFmt[]    PROGMEM = "\010 %s";
-const char         voltxtFmt[]    PROGMEM = "\023\025%d";
+const char          iptxtFmt[]    PROGMEM = "IP: %s";
+const char         voltxtFmt[]    PROGMEM = "Vol:%d";
 const char        bitrateFmt[]    PROGMEM = "%d kBs";
 
 /* MOVES  */                             /* { left, top, width } */

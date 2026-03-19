@@ -45,6 +45,9 @@ class Player: public Audio {
     uint16_t    _currentIndex;  // 当前播放索引
     playMode_e  _currentMode;   // 当前播放模式
     bool        _hasError;      // 错误标志
+    
+    // 音量映射表（声压级到人耳听感曲线）
+    static const uint8_t _volumeMap[255];
 
   private:
     void _stop(bool alreadyStopped = false);

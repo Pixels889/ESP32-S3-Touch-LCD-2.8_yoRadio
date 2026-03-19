@@ -91,6 +91,7 @@ class TextWidget: public Widget {
     uint16_t  _buffsize, _textwidth, _oldtextwidth, _oldleft, _textheight;
     uint8_t _charWidth;
     const uint8_t* _font;  // 新增：存储字体指针
+    bool _needRedraw;      // 新增：强制重绘标志
   protected:
     void _draw();
     uint16_t _realLeft(bool w_fb=false);

@@ -82,12 +82,16 @@ void TextWidget::init(WidgetConfig wconf, uint16_t buffsize, bool uppercase, con
   _textwidth = _oldtextwidth = _oldleft = 0;
   _uppercase = uppercase;
   _font = font;  // 存储字体指针
+  _needRedraw = true;  // 初始化：第一次需要重绘
 }
 
 void TextWidget::setText(const char* txt) {
+  // 如果文本相同，直接返回，避免不必要的重绘
+ if (strcmp(_oldtext, txt) == 0) return;
+  
   strlcpy(_text, txt, _buffsize);
   _textwidth = strlen(_text) * _charWidth;
-  if (strcmp(_oldtext, _text) == 0) return;
+  _needRedraw = true;  // 文本变化，需要重绘
  
   if (_active) {
     // 提前计算好需要清除的区域，减少重复计算
@@ -127,6 +131,19 @@ uint16_t TextWidget::_realLeft(bool w_fb) {
 
 void TextWidget::_draw() {
   if(!_active) return;
+  
+  // ===== 第1步：立即计算当前应该显示的内容 =====
+  // 对于非滚动文本，直接比较完整文本
+  //if (!_needRedraw && strcmp(_text, _oldtext) == 0) {
+    //Serial.println("[DEBUG] TextWidget: 内容未变化，跳过清除+绘制");
+   // return;  // 既不清除也不重绘，直接返回！
+ // }
+  
+  // ===== 第2步：内容变化，执行清除+绘制（原子操作） =====
+  //Serial.printf("[DEBUG] TextWidget: 内容变化，执行清除+绘制 text=\"%s\"\n", _text);
+  
+  _needRedraw = false;
+  
   // 使用U8g2绘制中文，先设置专属字体
   u8g2Font.setFont(_font);
   dsp.setClipping({_config.left, _config.top, _width>0?_width:dsp.width(), _textheight});
@@ -240,11 +257,24 @@ void ScrollWidget::setText(const char* txt) {
  // Serial.print(_oldtext);
  // Serial.println("\"");
 
-  strlcpy(_text, txt, _buffsize - 1);
+  // 方案A优化：如果文本相同，直接返回，跳过所有操作（避免闪烁）
+  if (strcmp(_oldtext, txt) == 0) {
+    //Serial.println("[DEBUG] ScrollWidget::setText: 文本相同，跳过更新");
+    return;
+  }
+
+  size_t oldLen = strlen(_text);
+  strlcpy(_text, txt, _buffsize);
+  size_t newLen = strlen(_text);
+  
+  // 调试：监控字符串长度变化
+  if (newLen > _buffsize - 10) {  // 如果接近缓冲区大小
+    Serial.printf("[WARNING] ScrollWidget text length: %d (buffer: %d)\n", newLen, _buffsize);
+  }
 
    _needRedraw = true;   // 新增：文本更新，需要重绘
-
-  if (strcmp(_oldtext, _text) == 0) return;
+  
+  //Serial.printf("[DEBUG] ScrollWidget::setText: 文本变化，旧=\"%s\", 新=\"%s\"\n", _oldtext, _text);
   // 使用U8g2获取实际宽度
   if (_text && strlen(_text) > 0) {
     u8g2Font.setFont(_font);
@@ -272,6 +302,9 @@ void ScrollWidget::setText(const char* txt, const char *format){
   setText(buf);
 }
 
+// 前向声明：获取UTF-8字符的字节长度（1-4字节）
+static inline uint8_t utf8_char_len(uint8_t c);
+
 void ScrollWidget::loop() {
   if(_locked) return;
   if (!_doscroll || _config.textsize == 0) return;
@@ -287,12 +320,21 @@ void ScrollWidget::loop() {
     _charStart++;
     uint16_t len = strlen(_text);
     if (len == 0) return;
+    
+    // 安全检查：如果 len 异常大（可能是内存损坏），重置 _charStart
+    if (len > _buffsize || len > 1000) {
+      Serial.printf("[ERROR] ScrollWidget: suspicious text length %d (buffer: %d)\n", len, _buffsize);
+      _charStart = 0;
+      return;
+    }
+    
     // 如果超过文本长度，则回到开头（循环）
     if (_charStart >= len) {
       _charStart = 0;
     }
     //Serial.printf("loop: _charStart %d -> %d (len=%d)\n", oldStart, _charStart, len);
     
+    // 调用 _draw()，让 _draw() 计算内容并绘制
     if (_active) _draw();
   }
 }
@@ -321,12 +363,12 @@ static inline uint8_t utf8_char_len(uint8_t c) {
 
 void ScrollWidget::_draw() {
   if(!_active || _locked) return;
-  _setTextParams();
 
   if (_doscroll) {
     uint16_t totalLen = strlen(_text);
     if (totalLen == 0) return;
 
+    // ===== 第1步：立即计算当前应该显示的内容 =====
     char displayBuf[SCROLL_BUFFER_SIZE];
     displayBuf[0] = '\0';
     int16_t currentWidth = 0;
@@ -340,20 +382,26 @@ void ScrollWidget::_draw() {
 
     // 快速构建显示字符串
     const char* p = src;
-    while (*p && currentWidth < _width - 2) {
+    size_t displayBufLen = 0;
+    uint16_t charCount = 0;
+    while (*p && currentWidth < _width - 2 && displayBufLen < SCROLL_BUFFER_SIZE - 5) {
       uint8_t len = utf8_char_len(*p);
       if (len <= 4) {
         char temp[5] = {0};
-        memcpy(temp, p, len);  // 用 memcpy 代替 strncpy
+        memcpy(temp, p, len);
         int16_t w = u8g2Font.getUTF8Width(temp);
         if (currentWidth + w <= _width - 2) {
-          strcat(displayBuf, temp);
-          currentWidth += w;
-          p += len;
+          if (displayBufLen + len < SCROLL_BUFFER_SIZE) {
+            strcat(displayBuf, temp);
+            displayBufLen += len;
+            charCount++;
+            currentWidth += w;
+            p += len;
+          } else break;
         } else break;
       } else break;
     }
-
+    
     // 确保不超宽
     int16_t finalWidth = u8g2Font.getUTF8Width(displayBuf);
     while (finalWidth > _width && strlen(displayBuf) > 0) {
@@ -361,17 +409,39 @@ void ScrollWidget::_draw() {
       finalWidth = u8g2Font.getUTF8Width(displayBuf);
     }
 
-    // 跳过相同内容的绘制
-    if (!_needRedraw && _charStart == _lastCharStart && 
-        strcmp(displayBuf, _lastDisplayBuf) == 0) {
-      return;
+    // ===== 第2步：立即比对，不需要刷新则直接返回 =====
+    // 关键优化：在任何清除/绘制之前，先判断是否需要刷新
+    // 注意：loop() 函数中已经比较过并更新了缓存，这里作为双重保护
+    // 刷新规则：
+    // 1. displayBuf变化了 → 刷新（显示新内容）
+    // 2. displayBuf没变，但_charStart变化了 → 刷新（在滚动，位置移动）
+    // 3. 其他情况 → 不刷新
+    bool needRefresh = _needRedraw || 
+                       strcmp(displayBuf, _lastDisplayBuf) != 0 || 
+                       _charStart != _lastCharStart;
+    
+    if (!needRefresh) {
+      //Serial.println("[DEBUG] ScrollWidget: 内容未变化且未滚动，跳过清除+绘制");
+      return;  // 既不清除也不重绘，直接返回！
     }
     
+    // ===== 第3步：内容变化，执行清除+绘制（原子操作） =====
+    //Serial.printf("[DEBUG] ScrollWidget: 内容变化，执行清除+绘制 _charStart=%d, text="%s"\n", _charStart, displayBuf);
+    
     _needRedraw = false;
-    _lastCharStart = _charStart;
+    _lastCharStart = _charStart;  // 更新缓存（loop() 中已更新，这里确保一致性）
     strlcpy(_lastDisplayBuf, displayBuf, SCROLL_BUFFER_SIZE);
+    
+    _setTextParams();  // 设置文本参数（移到这里，只在需要绘制时调用）
 
-    // 绘制
+    // 调试：检查绘制参数
+    /*
+    Serial.printf("[DEBUG] ScrollWidget::_draw: _config.left=%d, _config.top=%d, _width=%d, finalWidth=%d\n",
+                  _config.left, _config.top, _width, finalWidth);
+    Serial.printf("[DEBUG] ScrollWidget::_draw: displayBuf=\"%s\"\n", displayBuf);
+    */
+    
+    // 清除背景 + 绘制文本（原子操作）
     if (_fb->ready()) {
       #ifdef PSFBUFFER
       _fb->fillRect(0, 0, _width, _textheight, _bgcolor);

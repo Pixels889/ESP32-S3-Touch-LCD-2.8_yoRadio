@@ -197,8 +197,10 @@ void TouchScreen::loop()
     curY = p.y;
 #elif TS_MODEL == TS_MODEL_CST328
     TSPoint p = ts.getPoint();
+    // CST328 触摸屏坐标范围是 0-320，需要映射到实际屏幕坐标
+ //   curX = map(p.x, 0, 320, 0, _width);
     curX = p.x;
-    curY = p.y;
+    curY = map(p.y, 0, 320, 0, _height);
 #endif
   }
 
@@ -225,14 +227,36 @@ void TouchScreen::loop()
   static uint16_t lastHeight = 0;
   static uint16_t lastWidth = 0;
   
-  // 当屏幕尺寸变化时重新计算
+  
+  // 当屏幕尺寸或翻转状态变化时重新计算
   if (lastHeight != _height || lastWidth != _width) {
-    cachedUpperBound = _height * 2 / 3;
+    cachedUpperBound = _height * 3 / 4;
     cachedRightBound = _width * 2 / 3;
     cachedHalfWidth = _width / 2;
+    // 添加串口输出
+  //  Serial.print("_height: ");
+  //  Serial.print(_height);
+ //   Serial.print(", cachedUpperBound: ");
+ //   Serial.print(cachedUpperBound);
+ //   Serial.print(" (上部区域: Y < ");
+ //   Serial.print(cachedUpperBound);
+//    Serial.print(", 下部区域: Y >= ");
+//    Serial.print(cachedUpperBound);
+ //   Serial.println(")");
+
     lastHeight = _height;
     lastWidth = _width;
   }
+  
+  // 调试：打印当前触摸坐标和区域判断
+ // if (istouched) {
+ //   Serial.print("Touch Y=");
+ //   Serial.print(curY);
+ //   Serial.print(", upperBound=");
+ //   Serial.print(cachedUpperBound);
+ //   Serial.print(" -> ");
+//    Serial.println(curY < cachedUpperBound ? "上部区域" : "下部区域");
+ // }
   
   // 使用缓存值
   uint16_t upperBound = cachedUpperBound;

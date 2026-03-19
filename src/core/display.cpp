@@ -22,6 +22,7 @@
 
 #include <U8g2_for_Adafruit_GFX.h>
 #include <u8g2_fonts.h>
+#include "../fonts/u8g2_font_alibabapuhuitiregular22t.h"
 #include "esp_task_wdt.h"
 
 U8G2_FOR_ADAFRUIT_GFX u8g2Font; 
@@ -239,7 +240,7 @@ void Display::_bootScreen(){
 
 void Display::_buildPager(){
   // 为不同小部件指定不同字体
-  _meta->init("*", metaConf, u8g2_font_wqy16_t_gb2312, config.theme.meta, config.theme.metabg);
+  _meta->init("*", metaConf, u8g2_font_alibabapuhuitiregular22t, config.theme.meta, config.theme.metabg);
   _title1->init("*", title1Conf, u8g2_font_wqy16_t_gb2312, config.theme.title1, config.theme.background);
   _clock->init(clockConf, 0, 0);
   #if DSP_MODEL==DSP_NOKIA5110
@@ -277,13 +278,13 @@ void Display::_buildPager(){
     _heapbar = new SliderWidget(heapbarConf, config.theme.buffer, config.theme.background, psramInit()?300000:1600 * config.store.abuff);
   #endif
   #ifndef HIDE_VOL
-    _voltxt = new TextWidget(voltxtConf, 10, false, u8g2_font_wqy14_t_gb2312, config.theme.vol, config.theme.background);
+    _voltxt = new TextWidget(voltxtConf, 20, false, u8g2_font_wqy12_t_gb2312, config.theme.vol, config.theme.background);
   #endif
   #ifndef HIDE_IP
-    _volip = new TextWidget(iptxtConf, 30, false, u8g2_font_wqy14_t_gb2312, config.theme.ip, config.theme.background);
+    _volip = new TextWidget(iptxtConf, 30, false, u8g2_font_wqy12_t_gb2312, config.theme.ip, config.theme.background);
   #endif
   #ifndef HIDE_RSSI
-    _rssi = new TextWidget(rssiConf, 20, false, u8g2_font_wqy14_t_gb2312, config.theme.rssi, config.theme.background);
+    _rssi = new TextWidget(rssiConf, 20, false, u8g2_font_wqy12_t_gb2312, config.theme.rssi, config.theme.background);
   #endif
   _nums->init(numConf, 10, false, config.theme.digit, config.theme.background);
   #ifndef HIDE_WEATHER
@@ -299,7 +300,7 @@ void Display::_buildPager(){
   
   #ifdef BAT_ADC_PIN
   {
-    _batteryVolt = new TextWidget(batteryVoltConf, 16, false, u8g2_font_wqy12_t_gb2312,
+    _batteryVolt = new TextWidget(batteryVoltConf, 20, false, u8g2_font_wqy12_t_gb2312,
                                    config.theme.vol, config.theme.background);
     if (_batteryVolt) {
         Serial.println("BatteryVolt widget created successfully");
@@ -925,8 +926,8 @@ void Display::_volume() {
   if(_volbar) _volbar->setValue(config.store.volume);
   #ifndef HIDE_VOL
      if(_voltxt) {
-    char volBuf[10];
-    snprintf(volBuf, sizeof(volBuf), "VOL:%d", config.store.volume);
+    char volBuf[12];
+    snprintf(volBuf, sizeof(volBuf), "音量: %d", config.store.volume);
     _voltxt->setText(volBuf);
     }
   #endif
@@ -980,9 +981,9 @@ void Display::_updateBatteryVoltage(bool force) {
     if (!_batteryVolt) return;
     
     float v = BAT_Get_Volts();
-    char buf[12];  // 小缓冲区
+    char buf[13];  // 小缓冲区
     
-    snprintf(buf, sizeof(buf), "%.1fV", v);  // 只显示数字，不加符号
+    snprintf(buf, sizeof(buf), "电池: %.1fV", v);  // 只显示数字，不加符号
     
        
     Serial.printf("Setting battery: %s\n", buf);
