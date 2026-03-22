@@ -139,22 +139,21 @@ class ScrollWidget: public TextWidget {
     uint16_t _charStart;       // 当前显示的起始字符索引
     uint16_t _displayChars;    // 区域能显示的最大字符数
 
-    uint16_t _lastCharStart;                 // 上次绘制的起始字符索引
-    char _lastDisplayBuf[SCROLL_BUFFER_SIZE]; // 上次绘制的显示内容
-    bool _needRedraw;                         // 强制重绘标志（文本更新时设置）
+    int16_t _lastPixelOffset;  // 上次绘制的像素偏移量，用于缓存优化
+    bool _needRedraw;          // 强制重绘标志（文本更新时设置）
 
     // ========================
 
 
   private:
     void _setTextParams();
-    //void _calcX();
-    void _drawFrame();
+    void _calcX();
     void _draw();
     bool _checkIsScrollNeeded();
     bool _checkDelay(int m, uint32_t &tstamp);
     void _clear();
     void _reset();
+    void _clearMovingParts();
 };
 
 class SliderWidget: public Widget {
@@ -298,6 +297,27 @@ class PlayListWidget: public Widget {
     uint8_t _fillPlMenu(int from, uint8_t count);
     void _printPLitem(uint8_t pos, const char* item);
     
+};
+
+// RSSI信号强度竖条Widget（类似 ▁ ▃ ▅ █）
+class RSSIBarWidget: public Widget {
+  public:
+    RSSIBarWidget() {}
+    RSSIBarWidget(RSSIBarConfig conf, uint16_t fgcolor, uint16_t bgcolor, uint16_t dimcolor) {
+      init(conf, fgcolor, bgcolor, dimcolor);
+    }
+    using Widget::init;
+    void init(RSSIBarConfig conf, uint16_t fgcolor, uint16_t bgcolor, uint16_t dimcolor);
+    void setRSSI(int rssi);
+    
+  protected:
+    RSSIBarConfig _barConfig;
+    uint16_t _dimcolor;      // 未点亮竖条的颜色（暗色）
+    uint8_t _currentLevel;   // 当前信号等级（0-4）
+    uint8_t _oldLevel;       // 上次的信号等级
+    void _draw();
+    void _clear();
+    uint8_t _rssiToLevel(int rssi);  // 将RSSI值转换为0-4的等级
 };
 
 #endif

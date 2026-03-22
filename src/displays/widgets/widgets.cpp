@@ -146,12 +146,14 @@ void TextWidget::_draw() {
   
   // 使用U8g2绘制中文，先设置专属字体
   u8g2Font.setFont(_font);
-  dsp.setClipping({_config.left, _config.top, _width>0?_width:dsp.width(), _textheight});
+  dsp.setClipping({_config.left, _config.top, _width>0?_width:dsp.width(), _textheight}, DspCore::CLIP_STATIC);
   u8g2Font.setForegroundColor(_fgcolor);
   u8g2Font.setBackgroundColor(_bgcolor);
   u8g2Font.setFontMode(1);                // 透明模式
   // U8g2使用基线坐标，需要调整为从顶部绘制
-  u8g2Font.drawUTF8(_realLeft(), _config.top + _textheight - 2, _text);
+  // 计算基线Y坐标：顶部 + 文本高度 - 下降值（通常为2像素）
+  int16_t baselineY = _config.top + _textheight - 2;
+  u8g2Font.drawUTF8(_realLeft(), baselineY, _text);
   dsp.clearClipping();
   strlcpy(_oldtext, _text, _buffsize);
 }
@@ -217,9 +219,8 @@ void ScrollWidget::init(const char* separator, ScrollConfig conf, const uint8_t*
   _fb->begin(&dsp, _rl, _config.top, _width, _textheight, _bgcolor);
   #endif
 
- // 在 init() 末尾添加：
-  _lastCharStart = 0xFFFF; // 确保第一次绘制时不相等
-  _lastDisplayBuf[0] = '\0';
+  // 初始化缓存变量
+  _lastPixelOffset = -1; // 确保第一次绘制
   _needRedraw = true;
   
 }
@@ -313,28 +314,10 @@ void ScrollWidget::loop() {
 
   // 使用 _scrolltime 作为滚动间隔
   if (_checkDelay(_scrolltime, _scrolldelay)) {
-
-    uint16_t oldStart = _charStart;        // <--- 先保存旧值
-
-    // 字符级滚动：每次移动一个字符
-    _charStart++;
-    uint16_t len = strlen(_text);
-    if (len == 0) return;
+    // 像素级滚动：每次移动指定像素数
+    _calcX();  // 更新像素偏移量
     
-    // 安全检查：如果 len 异常大（可能是内存损坏），重置 _charStart
-    if (len > _buffsize || len > 1000) {
-      Serial.printf("[ERROR] ScrollWidget: suspicious text length %d (buffer: %d)\n", len, _buffsize);
-      _charStart = 0;
-      return;
-    }
-    
-    // 如果超过文本长度，则回到开头（循环）
-    if (_charStart >= len) {
-      _charStart = 0;
-    }
-    //Serial.printf("loop: _charStart %d -> %d (len=%d)\n", oldStart, _charStart, len);
-    
-    // 调用 _draw()，让 _draw() 计算内容并绘制
+    // 调用 _draw()，让 _draw() 根据像素偏移量绘制
     if (_active) _draw();
   }
 }
@@ -351,6 +334,13 @@ void ScrollWidget::_clear(){
   }
 }
 
+// 清除文本移动留下的痕迹 - 简化版本：总是清除整个显示区域
+void ScrollWidget::_clearMovingParts() {
+  // 简化逻辑：无论偏移量是否变化，都清除整个显示区域
+  // 这样可以确保没有残影，虽然可能增加一些绘制开销
+  dsp.fillRect(_config.left, _config.top, _width, _textheight + 2, _bgcolor);
+}
+
 
 // 获取UTF-8字符的字节长度（1-4字节）
 static inline uint8_t utf8_char_len(uint8_t c) {
@@ -365,129 +355,137 @@ void ScrollWidget::_draw() {
   if(!_active || _locked) return;
 
   if (_doscroll) {
-    uint16_t totalLen = strlen(_text);
-    if (totalLen == 0) return;
-
-    // ===== 第1步：立即计算当前应该显示的内容 =====
-    char displayBuf[SCROLL_BUFFER_SIZE];
-    displayBuf[0] = '\0';
-    int16_t currentWidth = 0;
-
-    // 定位到第 _charStart 个字符
-    const char* src = _text;
-    for (uint16_t i = 0; i < _charStart && *src; i++) {
-      src += utf8_char_len(*src);
-    }
-    if (*src == '\0') src = _text;
-
-    // 快速构建显示字符串
-    const char* p = src;
-    size_t displayBufLen = 0;
-    uint16_t charCount = 0;
-    while (*p && currentWidth < _width - 2 && displayBufLen < SCROLL_BUFFER_SIZE - 5) {
-      uint8_t len = utf8_char_len(*p);
-      if (len <= 4) {
-        char temp[5] = {0};
-        memcpy(temp, p, len);
-        int16_t w = u8g2Font.getUTF8Width(temp);
-        if (currentWidth + w <= _width - 2) {
-          if (displayBufLen + len < SCROLL_BUFFER_SIZE) {
-            strcat(displayBuf, temp);
-            displayBufLen += len;
-            charCount++;
-            currentWidth += w;
-            p += len;
-          } else break;
-        } else break;
-      } else break;
-    }
-    
-    // 确保不超宽
-    int16_t finalWidth = u8g2Font.getUTF8Width(displayBuf);
-    while (finalWidth > _width && strlen(displayBuf) > 0) {
-      remove_last_utf8_char(displayBuf);
-      finalWidth = u8g2Font.getUTF8Width(displayBuf);
-    }
-
-    // ===== 第2步：立即比对，不需要刷新则直接返回 =====
-    // 关键优化：在任何清除/绘制之前，先判断是否需要刷新
-    // 注意：loop() 函数中已经比较过并更新了缓存，这里作为双重保护
-    // 刷新规则：
-    // 1. displayBuf变化了 → 刷新（显示新内容）
-    // 2. displayBuf没变，但_charStart变化了 → 刷新（在滚动，位置移动）
-    // 3. 其他情况 → 不刷新
-    bool needRefresh = _needRedraw || 
-                       strcmp(displayBuf, _lastDisplayBuf) != 0 || 
-                       _charStart != _lastCharStart;
-    
-    if (!needRefresh) {
-      //Serial.println("[DEBUG] ScrollWidget: 内容未变化且未滚动，跳过清除+绘制");
-      return;  // 既不清除也不重绘，直接返回！
-    }
-    
-    // ===== 第3步：内容变化，执行清除+绘制（原子操作） =====
-    //Serial.printf("[DEBUG] ScrollWidget: 内容变化，执行清除+绘制 _charStart=%d, text="%s"\n", _charStart, displayBuf);
-    
-    _needRedraw = false;
-    _lastCharStart = _charStart;  // 更新缓存（loop() 中已更新，这里确保一致性）
-    strlcpy(_lastDisplayBuf, displayBuf, SCROLL_BUFFER_SIZE);
-    
-    _setTextParams();  // 设置文本参数（移到这里，只在需要绘制时调用）
-
-    // 调试：检查绘制参数
-    /*
-    Serial.printf("[DEBUG] ScrollWidget::_draw: _config.left=%d, _config.top=%d, _width=%d, finalWidth=%d\n",
-                  _config.left, _config.top, _width, finalWidth);
-    Serial.printf("[DEBUG] ScrollWidget::_draw: displayBuf=\"%s\"\n", displayBuf);
-    */
-    
-    // 清除背景 + 绘制文本（原子操作）
-    if (_fb->ready()) {
-      #ifdef PSFBUFFER
-      _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
-      int16_t x = (_config.align == WA_CENTER) ? (_width - finalWidth) / 2 :
-                  (_config.align == WA_RIGHT) ? _width - finalWidth : 0;
-      _fb->setCursor(x, 0);
-      _fb->print(displayBuf);
-      _fb->display();
-      #endif
-    } else {
+    // 像素级滚动模式
+    if (_textwidth <= _width) {
+      // 文本宽度小于显示区域，不需要滚动，居中显示
       u8g2Font.setFont(_font);
-      dsp.fillRect(_config.left, _config.top, _width, _textheight + 2, _bgcolor);
-      u8g2Font.setForegroundColor(_fgcolor);
-      u8g2Font.setBackgroundColor(_bgcolor);
-      u8g2Font.setFontMode(1);
-
-      int16_t drawX = _config.left;
-      if (_config.align == WA_CENTER) {
-        drawX = _config.left + (_width - finalWidth) / 2;
-      } else if (_config.align == WA_RIGHT) {
-        drawX = _config.left + _width - finalWidth;
-      }
       
-      u8g2Font.drawUTF8(drawX, _config.top + _textheight - 2, displayBuf);
+      // 使用帧缓冲或直接绘制
+      if (_fb->ready()) {
+        #ifdef PSFBUFFER
+        // 优化：只在需要时清除背景
+        if (_needRedraw) {
+          _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
+        }
+        u8g2Font.setForegroundColor(_fgcolor);
+        u8g2Font.setBackgroundColor(_bgcolor);
+        u8g2Font.setFontMode(1);
+        
+        int16_t drawX = 0;
+        if (_config.align == WA_CENTER) {
+          drawX = (_width - _textwidth) / 2;
+        } else if (_config.align == WA_RIGHT) {
+          drawX = _width - _textwidth;
+        }
+        
+        u8g2Font.drawUTF8(drawX, _textheight - 2, _text);
+        _fb->display();
+        #endif
+      } else {
+        // 优化：只在需要时清除背景
+        if (_needRedraw) {
+          dsp.fillRect(_config.left, _config.top, _width, _textheight + 2, _bgcolor);
+        }
+        u8g2Font.setForegroundColor(_fgcolor);
+        u8g2Font.setBackgroundColor(_bgcolor);
+        u8g2Font.setFontMode(1);
+        
+        int16_t drawX = _config.left;
+        if (_config.align == WA_CENTER) {
+          drawX = _config.left + (_width - _textwidth) / 2;
+        } else if (_config.align == WA_RIGHT) {
+          drawX = _config.left + _width - _textwidth;
+        }
+        
+        u8g2Font.drawUTF8(drawX, _config.top + _textheight - 2, _text);
+      }
+    } else {
+      // 需要滚动：根据像素偏移量绘制
+      u8g2Font.setFont(_font);
+      
+      if (_fb->ready()) {
+        #ifdef PSFBUFFER
+        // 优化：只在需要时清除背景
+        if (_needRedraw) {
+          _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
+        }
+        u8g2Font.setForegroundColor(_fgcolor);
+        u8g2Font.setBackgroundColor(_bgcolor);
+        u8g2Font.setFontMode(1);
+        
+        // 在帧缓冲中绘制完整文本（包括循环部分）
+        int16_t drawX = -_pixelOffset;
+        u8g2Font.drawUTF8(drawX, _textheight - 2, _text);
+        
+        // 循环滚动：当文本开始从左边消失时，在右边绘制剩余部分
+        if (_pixelOffset > 0) {
+          int16_t loopX = _textwidth - _pixelOffset + _sepwidth;
+          u8g2Font.drawUTF8(loopX, _textheight - 2, _text);
+        }
+        
+        _fb->display();
+        #endif
+      } else {
+        // 直接绘制到屏幕 - 使用更精细的清除逻辑
+        // 只在文本变化或首次绘制时清除整个区域
+        if (_needRedraw) {
+          dsp.fillRect(_config.left, _config.top, _width, _textheight + 2, _bgcolor);
+        } else if (_lastPixelOffset != -1) {
+          // 文本未变化，只清除移动留下的痕迹
+          _clearMovingParts();
+        }
+        
+        u8g2Font.setForegroundColor(_fgcolor);
+        u8g2Font.setBackgroundColor(_bgcolor);
+        u8g2Font.setFontMode(1);
+        
+        // 使用裁剪区域确保文本不会绘制到TFT_FRAMEWDT区域之外
+        dsp.setClipping({_config.left, _config.top, _width, _textheight + 2}, DspCore::CLIP_SCROLL);
+        
+        // 主文本绘制位置：从左边边界开始向左滚动
+        int16_t drawX = _config.left - _pixelOffset;
+        u8g2Font.drawUTF8(drawX, _config.top + _textheight - 2, _text);
+        
+        // 循环滚动：当文本开始从左边消失时，在右边绘制剩余部分
+        if (_pixelOffset > 0) {
+          int16_t loopX = _config.left + (_textwidth - _pixelOffset) + _sepwidth;
+          u8g2Font.drawUTF8(loopX, _config.top + _textheight - 2, _text);
+        }
+        
+        dsp.clearClipping();
+      }
     }
   } else {
     // 非滚动模式保持不变
     if (_fb->ready()) {
       #ifdef PSFBUFFER
-      _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
+      // 优化：只在需要时清除背景
+      if (_needRedraw) {
+        _fb->fillRect(0, 0, _width, _textheight, _bgcolor);
+      }
       _fb->setCursor(_realLeft(true), 0);
       _fb->print(_text);
       _fb->display();
       #endif
     } else {
       u8g2Font.setFont(_font);
-      dsp.fillRect(_config.left, _config.top, _width, _textheight + 2, _bgcolor);
+      // 优化：只在需要时清除背景
+      if (_needRedraw) {
+        dsp.fillRect(_config.left, _config.top, _width, _textheight + 2, _bgcolor);
+      }
       u8g2Font.setForegroundColor(_fgcolor);
       u8g2Font.setBackgroundColor(_bgcolor);
       u8g2Font.setFontMode(1);
       u8g2Font.drawUTF8(_realLeft(), _config.top + _textheight - 2, _text);
     }
   }
+  
+  // 更新上次像素偏移量
+  _lastPixelOffset = _pixelOffset;
+  // 重置重绘标志
+  _needRedraw = false;
 }
 
-/*
 void ScrollWidget::_calcX() {
   if (!_doscroll || _config.textsize == 0) return;
   _pixelOffset += _scrolldelta;   // 向左滚动，增加偏移
@@ -499,7 +497,6 @@ void ScrollWidget::_calcX() {
     _pixelOffset = 0;
   }
 }
-*/
 
 bool ScrollWidget::_checkDelay(int m, uint32_t &tstamp) {
   if (millis() - tstamp > m) {
@@ -1236,7 +1233,7 @@ void PlayListWidget::_printPLitem(uint8_t pos, const char* item){
     int16_t x = TFT_FRAMEWDT;
     int16_t yTop = _plYStart + pos * _plItemHeight;
     uint16_t textHeight = playlistConf.widget.textsize * CHARHEIGHT;
-    dsp.setClipping({0, _plYStart + pos * _plItemHeight - 1, dsp.width(), _plItemHeight - 2});
+    dsp.setClipping({0, _plYStart + pos * _plItemHeight - 1, dsp.width(), _plItemHeight - 2}, DspCore::CLIP_STATIC);
 
         // ===== 添加调试 =====
     Serial.printf("Item %d, plColor=%d, color value=0x%04X\n", 
@@ -1274,3 +1271,83 @@ void PlayListWidget::drawPlaylist(uint16_t currentItem) {
 #endif
 
 #endif // #if DSP_MODEL!=DSP_DUMMY
+
+// ==================== RSSIBarWidget 实现 ====================
+
+void RSSIBarWidget::init(RSSIBarConfig conf, uint16_t fgcolor, uint16_t bgcolor, uint16_t dimcolor) {
+  Widget::init(conf.widget, fgcolor, bgcolor);
+  _barConfig = conf;
+  _dimcolor = dimcolor;
+  _currentLevel = 0;
+  _oldLevel = 0;
+}
+
+uint8_t RSSIBarWidget::_rssiToLevel(int rssi) {
+  // RSSI值转换为0-4的等级（4档竖条）
+  if (rssi >= -60) return 4;  // 强信号：全部4条点亮
+  if (rssi >= -70) return 3;  // 良好：点亮3条
+  if (rssi >= -80) return 2;  // 较弱：点亮2条
+  return 1;                   // 弱信号：点亮1条
+}
+
+void RSSIBarWidget::setRSSI(int rssi) {
+  uint8_t newLevel = _rssiToLevel(rssi);
+  if (newLevel != _currentLevel) {
+    _currentLevel = newLevel;
+    if (_active && !_locked) {
+      _draw();
+    }
+  }
+}
+
+void RSSIBarWidget::_draw() {
+  if (_locked) return;
+  
+  // 计算竖条总宽度
+  uint8_t totalWidth = _barConfig.barCount * _barConfig.barWidth + 
+                      (_barConfig.barCount - 1) * _barConfig.barSpacing;
+  
+  // 根据对齐方式计算起始X坐标
+  int16_t startX = _config.left;
+  if (_config.align == WA_CENTER) {
+    startX = _config.left - totalWidth / 2;
+  } else if (_config.align == WA_RIGHT) {
+    startX = _config.left - totalWidth;
+  }
+  
+  // 绘制所有竖条
+  for (uint8_t i = 0; i < _barConfig.barCount; i++) {
+    // 计算当前竖条的X位置
+    int16_t barX = startX + i * (_barConfig.barWidth + _barConfig.barSpacing);
+    
+    // 计算当前竖条的高度（按比例递增）
+    uint8_t barHeight = (i + 1) * _barConfig.maxHeight / _barConfig.barCount;
+    
+    // 计算当前竖条的Y位置（底部对齐）
+    int16_t barY = _config.top + _barConfig.maxHeight - barHeight;
+    
+    // 确定颜色：如果当前等级大于等于竖条索引+1，则点亮，否则用暗色
+    uint16_t color = (i < _currentLevel) ? _fgcolor : _dimcolor;
+    
+    // 绘制竖条
+    dsp.fillRect(barX, barY, _barConfig.barWidth, barHeight, color);
+  }
+  
+  _oldLevel = _currentLevel;
+}
+
+void RSSIBarWidget::_clear() {
+  // 计算清除区域
+  uint8_t totalWidth = _barConfig.barCount * _barConfig.barWidth + 
+                      (_barConfig.barCount - 1) * _barConfig.barSpacing;
+  
+  int16_t startX = _config.left;
+  if (_config.align == WA_CENTER) {
+    startX = _config.left - totalWidth / 2;
+  } else if (_config.align == WA_RIGHT) {
+    startX = _config.left - totalWidth;
+  }
+  
+  // 清除整个竖条区域
+  dsp.fillRect(startX, _config.top, totalWidth, _barConfig.maxHeight, _bgcolor);
+}

@@ -1,6 +1,8 @@
 #ifndef widgetsconfig_h
 #define widgetsconfig_h
 
+#include <stdint.h>
+
 enum WidgetAlign { WA_LEFT, WA_CENTER, WA_RIGHT };
 enum BitrateFormat { BF_UNKNOWN, BF_MP3, BF_AAC, BF_FLAC, BF_OGG, BF_WAV };
 
@@ -52,6 +54,15 @@ struct MoveConfig {
 struct BitrateConfig {
   WidgetConfig widget;
   uint16_t dimension;
+};
+
+// RSSI竖条配置结构
+struct RSSIBarConfig {
+  WidgetConfig widget;   // 基础位置配置
+  uint8_t barCount;      // 竖条数量（默认4）
+  uint8_t barWidth;      // 每个竖条宽度
+  uint8_t barSpacing;    // 竖条间距
+  uint8_t maxHeight;     // 最高竖条的高度
 };
 
 #endif

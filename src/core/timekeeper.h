@@ -3,7 +3,7 @@
 #pragma once
 
 void _syncTask(void * pvParameters);
-bool _getWeather();
+void _getWeather();
 
 class TimeKeeper {
   public:

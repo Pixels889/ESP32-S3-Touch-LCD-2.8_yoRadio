@@ -56,7 +56,7 @@ TimeKeeper::TimeKeeper(){
 bool TimeKeeper::loop0() { // core0 (display)
   if (network.status != CONNECTED) return true;
   
-  static uint32_t lastTasks[3] = {0, 0, 0}; // 0:1s, 1:2s, 2:5s
+  static uint32_t lastTasks[2] = {0, 0}; // 0:1s, 1:2s
   uint32_t now = millis();
   
   // 1秒任务
@@ -75,22 +75,16 @@ bool TimeKeeper::loop0() { // core0 (display)
     _upRSSI();
   }
   
-  // 5秒任务（可选）
-  if (now - lastTasks[2] >= 5000) {
-    lastTasks[2] = now;
-    // HEAP_INFO();  // 调试用
-  }
-  
   return true;
 }
 
 bool TimeKeeper::loop1() { // core1 (player)
-  static uint32_t lastTasks[2] = {0, 0}; // 0:1s, 1:2s
+  static uint32_t lastTask = 0;
   uint32_t now = millis();
   
   // 1秒任务
-  if (now - lastTasks[0] >= 1000) {
-    lastTasks[0] = now;
+  if (now - lastTask >= 1000) {
+    lastTask = now;
     pm.on_ticker();
 #if !defined(DUMMYDISPLAY) || defined(USE_NEXTION)
   #ifdef UPCLOCK_CORE1
@@ -102,18 +96,12 @@ bool TimeKeeper::loop1() { // core1 (player)
     _returnPlayer();
     _doAfterWait();
   }
-  
-  // 2秒任务
-  if (now - lastTasks[1] >= 2000) {
-    lastTasks[1] = now;
-    // 目前为空，保留以备后用
-  }
 
 #if defined(DUMMYDISPLAY) && !defined(USE_NEXTION)
   return true;
 #endif
 
-  // 天气和时间同步（使用静态变量减少重复计算）
+  // 天气和时间同步
   static uint32_t lastWeatherTime = 0;
   static uint32_t lastTimeTime = 0;
   
@@ -241,14 +229,13 @@ void TimeKeeper::weatherTask() {
   _getWeather();
 }
 
-
-bool _getWeather() {
+void _getWeather() {
 #if (DSP_MODEL!=DSP_DUMMY || defined(USE_NEXTION)) && !defined(HIDE_WEATHER)
   static AsyncClient * weatherClient = NULL;
   static const char* host = "api.openweathermap.org";
-  if(weatherClient) return false;
+  if(weatherClient) return;
   weatherClient = new AsyncClient();
-  if(!weatherClient) return false;
+  if(!weatherClient) return;
 
   weatherClient->onError([](void * arg, AsyncClient * client, int error){
     Serial.println("##WEATHER###: connection error");
@@ -346,10 +333,5 @@ bool _getWeather() {
     weatherClient = NULL;
     delete client;
   }
-
-  return true;
 #endif // if (DSP_MODEL!=DSP_DUMMY || defined(USE_NEXTION)) && !defined(HIDE_WEATHER)
-  return false;
 }
-
-//******************

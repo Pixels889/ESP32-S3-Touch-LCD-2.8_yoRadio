@@ -30,6 +30,7 @@ class VuWidget;
 class NumWidget;
 class ClockWidget;
 class TextWidget;
+class RSSIBarWidget;
 
 class Display {
 public:
@@ -75,7 +76,8 @@ private:
     ClockWidget *_clock;
     VuWidget *_vuwidget;
     NumWidget *_nums;
-    TextWidget *_bootstring, *_volip, *_voltxt, *_rssi, *_bitrate, *_batteryVolt;
+    TextWidget *_bootstring, *_volip, *_voltxt, *_bitrate, *_batteryVolt;
+    RSSIBarWidget *_rssi;
     BitrateWidget *_fullbitrate;
     FillWidget *_metabackground, *_plbackground;
     SliderWidget *_volbar, *_heapbar;

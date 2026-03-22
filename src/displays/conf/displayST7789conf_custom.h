@@ -31,25 +31,25 @@
 */
 
 // 电台名称滚动 - 减慢速度：scrolldelta 5→2, scrolltime 30→60
-const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 3, WA_LEFT }, 140, true, MAX_WIDTH + TFT_FRAMEWDT, 5000, 1, 300 };
+const ScrollConfig metaConf       PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 3, WA_LEFT }, 140, true, MAX_WIDTH + TFT_FRAMEWDT, 5000, 4, 300 };
 
 // 歌曲标题1滚动 - 减慢速度：scrolldelta 4→2, scrolltime 30→60
-const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT, 52, 2, WA_LEFT }, 140, true, MAX_WIDTH - TITLE_FIX, 5000, 1, 300 };
+const ScrollConfig title1Conf     PROGMEM = {{ TFT_FRAMEWDT, 52, 2, WA_LEFT }, 140, true, MAX_WIDTH - TITLE_FIX, 5000, 4, 300 };
 
 // 歌曲标题2滚动 - 减慢速度：scrolldelta 4→2, scrolltime 30→60
-const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT, 76, 2, WA_LEFT }, 140, true, MAX_WIDTH - TITLE_FIX, 5000, 1, 300 };
+const ScrollConfig title2Conf     PROGMEM = {{ TFT_FRAMEWDT, 76, 2, WA_LEFT }, 140, true, MAX_WIDTH - TITLE_FIX, 5000, 4, 300 };
 
 // 播放列表滚动 - 减慢速度：scrolldelta 2→1, scrolltime 30→50
-const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 112, 2, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 1, 300 };
+const ScrollConfig playlistConf   PROGMEM = {{ TFT_FRAMEWDT, 112, 2, WA_LEFT }, 140, true, MAX_WIDTH, 1000, 2, 300 };
 
 // AP标题滚动
-const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 3, WA_CENTER }, 140, false, MAX_WIDTH, 0, 1, 150 };
+const ScrollConfig apTitleConf    PROGMEM = {{ TFT_FRAMEWDT, TFT_FRAMEWDT, 3, WA_CENTER }, 140, false, MAX_WIDTH, 0, 2, 300 };
 
 // AP设置滚动
-const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 240-TFT_FRAMEWDT-16, 2, WA_LEFT }, 140, false, MAX_WIDTH, 0, 1, 150 };
+const ScrollConfig apSettConf     PROGMEM = {{ TFT_FRAMEWDT, 240-TFT_FRAMEWDT-16, 2, WA_LEFT }, 140, false, MAX_WIDTH, 0, 2, 300 };
 
 // 天气滚动
-const ScrollConfig weatherConf    PROGMEM = {{ 8, 87, 2, WA_LEFT }, 140, true, MAX_WIDTH, 0, 1, 150 };
+const ScrollConfig weatherConf    PROGMEM = {{ 8, 87, 2, WA_LEFT }, 140, true, MAX_WIDTH, 0, 2, 300 };
 
 /* BACKGROUNDS  */                       /* {{ left, top, fontsize, align }, width, height, outlined } */
 const FillConfig   metaBGConf     PROGMEM = {{ 0, 0, 0, WA_LEFT }, DSP_WIDTH, 42, false };
@@ -61,9 +61,19 @@ const FillConfig  heapbarConf     PROGMEM = {{ 0, 239, 0, WA_LEFT }, DSP_WIDTH, 
 /* WIDGETS  */                           /* { left, top, fontsize, align } */
 const WidgetConfig bootstrConf    PROGMEM = { 0, 182, 1, WA_CENTER };
 const WidgetConfig bitrateConf    PROGMEM = { 70, 191, 1, WA_LEFT };
-const WidgetConfig voltxtConf     PROGMEM = { 0, 214, 1, WA_CENTER };
+//const WidgetConfig voltxtConf     PROGMEM = { 0, 214, 1, WA_CENTER };
+const WidgetConfig voltxtConf     PROGMEM = { 130, 214, 1, WA_LEFT };
 const WidgetConfig  iptxtConf     PROGMEM = { TFT_FRAMEWDT, 214, 1, WA_LEFT };
-const WidgetConfig   rssiConf     PROGMEM = { 220,214, 1, WA_LEFT };
+//const WidgetConfig   rssiConf     PROGMEM = { 220,214, 1, WA_LEFT };
+const WidgetConfig   rssiConf     PROGMEM = { 290,214, 1, WA_LEFT };
+/* RSSI BAR CONFIG */
+const RSSIBarConfig rssiBarConf PROGMEM = {
+    { 310, 210, 1, WA_RIGHT },  // WidgetConfig
+    4,                          // barCount (4档竖条)
+    3,                          // barWidth (每个竖条4像素宽)
+    2,                          // barSpacing (竖条间距2像素)
+    10                          // maxHeight (最高竖条16像素高)
+};
 const WidgetConfig numConf        PROGMEM = { 0, 120+30, 0, WA_CENTER };
 const WidgetConfig apNameConf     PROGMEM = { TFT_FRAMEWDT, 66, 2, WA_CENTER };
 const WidgetConfig apName2Conf    PROGMEM = { TFT_FRAMEWDT, 90, 2, WA_CENTER };
@@ -71,7 +81,8 @@ const WidgetConfig apPassConf     PROGMEM = { TFT_FRAMEWDT, 130, 2, WA_CENTER };
 const WidgetConfig apPass2Conf    PROGMEM = { TFT_FRAMEWDT, 154, 2, WA_CENTER };
 const WidgetConfig  clockConf     PROGMEM = { 8, 176, 0, WA_RIGHT };
 const WidgetConfig vuConf         PROGMEM = { TFT_FRAMEWDT, 100, 1, WA_LEFT };
-const WidgetConfig batteryVoltConf PROGMEM = { 0, 214, 1, WA_RIGHT };
+//const WidgetConfig batteryVoltConf PROGMEM = { 0, 214, 1, WA_RIGHT };
+const WidgetConfig batteryVoltConf PROGMEM = { 200, 214, 1, WA_LEFT };
 
 const WidgetConfig bootWdtConf    PROGMEM = { 0, 162, 1, WA_CENTER };
 const ProgressConfig bootPrgConf  PROGMEM = { 90, 14, 4 };

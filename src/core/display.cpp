@@ -47,7 +47,7 @@ Nextion nextion;
 #endif
 
 #define DSP_QUEUE_TICKS 0
-#define HIDE_RSSI
+// RSSI功能已启用（显示四档竖条信号强度）
 
 QueueHandle_t displayQueue;
 
@@ -130,10 +130,6 @@ void Display::_clearBootTextArea() {
     
     // 清除整个宽度的区域
     dsp.fillRect(0, clearTop, dsp.width(), clearHeight, ST77XX_BLACK);
-    
-    // 调试信息
-    //Serial.printf("Boot text clear: top=%d, height=%d, fontHeight=%d\n", 
-                  //clearTop, clearHeight, fontHeight);
 }
 
 
@@ -174,15 +170,9 @@ void Display::init() {
   u8g2Font.begin(dsp);
   u8g2Font.setFont(u8g2_font_wqy16_t_gb2312);  // 默认字体
 
-  uint16_t width1 = u8g2Font.getUTF8Width("一");  // 汉字
-  uint16_t width2 = u8g2Font.getUTF8Width("A");   // 英文
-  uint16_t width3 = u8g2Font.getUTF8Width("。");  // 标点
-  Serial.printf("汉字:%d 英文:%d 标点:%d\n", width1, width2, width3);
-
-
   u8g2Font.setForegroundColor(ST77XX_WHITE);
   u8g2Font.setBackgroundColor(ST77XX_BLACK);
-  u8g2Font.setFontMode(1);
+  u8g2Font.setFontMode(1);  // 透明模式
 
   displayQueue=NULL;
   displayQueue = xQueueCreate( 5, sizeof( requestParams_t ) );
@@ -284,7 +274,7 @@ void Display::_buildPager(){
     _volip = new TextWidget(iptxtConf, 30, false, u8g2_font_wqy12_t_gb2312, config.theme.ip, config.theme.background);
   #endif
   #ifndef HIDE_RSSI
-    _rssi = new TextWidget(rssiConf, 20, false, u8g2_font_wqy12_t_gb2312, config.theme.rssi, config.theme.background);
+    _rssi = new RSSIBarWidget(rssiBarConf, config.theme.rssi, config.theme.background, config.theme.background);
   #endif
   _nums->init(numConf, 10, false, config.theme.digit, config.theme.background);
   #ifndef HIDE_WEATHER
@@ -302,9 +292,6 @@ void Display::_buildPager(){
   {
     _batteryVolt = new TextWidget(batteryVoltConf, 20, false, u8g2_font_wqy12_t_gb2312,
                                    config.theme.vol, config.theme.background);
-    if (_batteryVolt) {
-        Serial.println("BatteryVolt widget created successfully");
-    }
     BAT_Init();
     _updateBatteryVoltage(false);
     _footer->addWidget(_batteryVolt);
@@ -783,7 +770,7 @@ if (_batteryVolt && millis() - _lastBatteryRead > 10000) {
             playMode_e currentMode = player.getCurrentMode();
             if (selected == current && config.getMode() == currentMode) {
               _switchMode(PLAYER);
-              // 手动刷新当前播放信息
+              // 手动刷新
               display.putRequest(NEWSTATION);
               display.putRequest(DBITRATE);
               if (strlen(config.station.title) > 0) {
@@ -804,7 +791,7 @@ if (_batteryVolt && millis() - _lastBatteryRead > 10000) {
            u8g2Font.setFont(u8g2_font_wqy16_t_gb2312b);
            u8g2Font.setForegroundColor(ST77XX_WHITE);
            u8g2Font.setBackgroundColor(config.theme.background);
-           u8g2Font.setFontMode(1);
+           u8g2Font.setFontMode(0);  // 非透明模式，绘制背景
 
            // 显示提示信息
            const char *msg = "请松开按键关机！";
@@ -848,19 +835,11 @@ void Display::_setRSSI(int rssi) {
 }
 */
 void Display::_setRSSI(int rssi) {
-    if(!_rssi) {
-        Serial.println("_rssi is NULL");
-        return;
-    }
-
-    // 打印调用时的模式
-    //Serial.printf("_setRSSI called in mode: %d, value: %ddB\n", _mode, rssi);
-    // 临时用数字显示
-    char buf[8];
-    snprintf(buf, sizeof(buf), "%ddB", rssi);
-    _rssi->setText(buf);
+    if(!_rssi) return;
     
-    // 强制激活
+    // 直接调用RSSIBarWidget的setRSSI方法
+    _rssi->setRSSI(rssi);
+    
     _rssi->setActive(true);
     _rssi->unlock();
 }
@@ -879,9 +858,6 @@ char *split(char *str, const char *delim) {
 }
 
 void Display::_title() {
-
-  Serial.printf("_title: title='%s', url='%s'\n", config.station.title, config.station.url);
-
   if (strlen(config.station.title) > 0) {
     char tmpbuf[strlen(config.station.title)+1];
     strlcpy(tmpbuf, config.station.title, strlen(config.station.title)+1);
@@ -957,17 +933,8 @@ bool Display::deepsleep(){
 
 
 void Display::wakeup() {
-  Serial.printf("WAKEUP called from: %s\n", __func__);
-  
-  // 打印调用栈（ESP32特有）
-  #ifdef ESP32
-    Serial.printf("Stack trace: %p\n", __builtin_return_address(0));
-  #endif
-  
   #if defined(LCD_I2C) || defined(DSP_OLED) || BRIGHTNESS_PIN!=255
     dsp.wake();
-    //config.setDspOn(true);
-    //config.screensaverTicks = SCREENSAVERSTARTUPDELAY;
   #endif
 }
 //void Display::wakeup(){
@@ -985,8 +952,6 @@ void Display::_updateBatteryVoltage(bool force) {
     
     snprintf(buf, sizeof(buf), "电池: %.1fV", v);  // 只显示数字，不加符号
     
-       
-    Serial.printf("Setting battery: %s\n", buf);
     _batteryVolt->setText(buf);
     _lastBatteryRead = millis();
 }

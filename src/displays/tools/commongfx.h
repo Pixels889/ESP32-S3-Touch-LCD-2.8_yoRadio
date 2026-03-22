@@ -14,6 +14,12 @@ class psFrameBuffer;
 
 class DspCore: public yoDisplay {
   public:
+    enum ClipType {
+      CLIP_NONE,      // 不裁剪
+      CLIP_SCROLL,    // 滚动文字裁剪（严格）- 使用用户提供的完整代码
+      CLIP_STATIC     // 静态文字裁剪（不裁剪）- 保持老代码不动
+    };
+  public:
     DspCore();
     void initDisplay();
     void clearDsp(bool black=false);
@@ -65,24 +71,59 @@ class DspCore: public yoDisplay {
     uint16_t textWidth(const char *txt);
     #if !defined(DSP_LCD)
       inline void writePixel(int16_t x, int16_t y, uint16_t color) {
-        if(_clipping){
+        if(_clipping && _clipType == CLIP_SCROLL){
+          // 滚动部分：使用用户提供的严格裁剪逻辑
           if ((x < _cliparea.left) || (x > _cliparea.left+_cliparea.width) || (y < _cliparea.top) || (y > _cliparea.top + _cliparea.height)) return;
         }
+        // 静态部分：不裁剪（保持老代码不动）
         yoDisplay::writePixel(x, y, color);
       }
       inline void writeFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-        if(_clipping){
+        if(_clipping && _clipType == CLIP_SCROLL){
+          // 滚动部分：使用用户提供的严格裁剪逻辑
           if ((x < _cliparea.left) || (x >= _cliparea.left+_cliparea.width) || (y < _cliparea.top) || (y > _cliparea.top + _cliparea.height))  return;
         }
+        // 静态部分：不裁剪（保持老代码不动）
         yoDisplay::writeFillRect(x, y, w, h, color);
+      }
+      inline void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) {
+        if(_clipping && _clipType == CLIP_SCROLL){
+          // 滚动部分：使用用户提供的严格裁剪逻辑
+          if ((x < _cliparea.left) || (x + w > _cliparea.left + _cliparea.width) || 
+              (y < _cliparea.top) || (y > _cliparea.top + _cliparea.height)) return;
+        }
+        // 静态部分：不裁剪（保持老代码不动）
+        yoDisplay::drawFastHLine(x, y, w, color);
+      }
+      inline void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color) {
+        if(_clipping && _clipType == CLIP_SCROLL){
+          // 滚动部分：使用用户提供的严格裁剪逻辑
+          if ((x < _cliparea.left) || (x > _cliparea.left + _cliparea.width) || 
+              (y < _cliparea.top) || (y + h > _cliparea.top + _cliparea.height)) return;
+        }
+        // 静态部分：不裁剪（保持老代码不动）
+        yoDisplay::drawFastVLine(x, y, h, color);
+      }
+      inline void drawPixel(int16_t x, int16_t y, uint16_t color) {
+        if(_clipping && _clipType == CLIP_SCROLL){
+          // 滚动部分：使用用户提供的严格裁剪逻辑
+          if ((x < _cliparea.left) || (x > _cliparea.left+_cliparea.width) || 
+              (y < _cliparea.top) || (y > _cliparea.top + _cliparea.height)) return;
+        }
+        // 静态部分：不裁剪（保持老代码不动）
+        yoDisplay::drawPixel(x, y, color);
       }
     #else
       inline void writePixel(int16_t x, int16_t y, uint16_t color) { }
       inline void writeFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) { }
+      inline void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) { }
+      inline void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color) { }
+      inline void drawPixel(int16_t x, int16_t y, uint16_t color) { }
     #endif
-    inline void setClipping(clipArea ca){
+    inline void setClipping(clipArea ca, ClipType type = CLIP_SCROLL){
       _cliparea = ca;
       _clipping = true;
+      _clipType = type;
     }
     inline void clearClipping(){
       _clipping = false;
@@ -93,6 +134,7 @@ class DspCore: public yoDisplay {
   private:
     bool _clipping;
     clipArea _cliparea;
+    ClipType _clipType;
     void * _scrollid;
     #ifdef PSFBUFFER
     psFrameBuffer* _fb=nullptr;
