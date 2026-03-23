@@ -902,7 +902,7 @@ void Display::_volume() {
   if(_volbar) _volbar->setValue(config.store.volume);
   #ifndef HIDE_VOL
      if(_voltxt) {
-    char volBuf[10];
+    char volBuf[12];
     snprintf(volBuf, sizeof(volBuf), "音量:%d", config.store.volume);
     _voltxt->setText(volBuf);
     }
