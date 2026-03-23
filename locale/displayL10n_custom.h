@@ -26,7 +26,7 @@ static const char* apSettFmt        = "请访问 http://%s/ 进行配置";
 
 // 数值格式
 static const char* numtxtFmt        = "%d";
-static const char* iptxtFmt         = "IP: %s";
+static const char* iptxtFmt         = "IP:%s";
 static const char* rssiFmt          = "%d dBm";
 static const char* bitrateFmt       = "%d kbps";
 

@@ -902,8 +902,8 @@ void Display::_volume() {
   if(_volbar) _volbar->setValue(config.store.volume);
   #ifndef HIDE_VOL
      if(_voltxt) {
-    char volBuf[12];
-    snprintf(volBuf, sizeof(volBuf), "音量: %d", config.store.volume);
+    char volBuf[10];
+    snprintf(volBuf, sizeof(volBuf), "音量:%d", config.store.volume);
     _voltxt->setText(volBuf);
     }
   #endif
@@ -948,9 +948,9 @@ void Display::_updateBatteryVoltage(bool force) {
     if (!_batteryVolt) return;
     
     float v = BAT_Get_Volts();
-    char buf[13];  // 小缓冲区
+    char buf[12];  // 小缓冲区
     
-    snprintf(buf, sizeof(buf), "电池: %.1fV", v);  // 只显示数字，不加符号
+    snprintf(buf, sizeof(buf), "电池:%.1fV", v);  // 只显示数字，不加符号
     
     _batteryVolt->setText(buf);
     _lastBatteryRead = millis();
