@@ -27,7 +27,7 @@ input[type=text],input[type=password]{width:170px;background:#272727;color:#e3d2
 <form action="/webboard" method="post" enctype="multipart/form-data">
 <p><label for="www">www:</label> <input type="file" name="www" id="www" multiple></p>
 <hr />
-<span>-= 可选 =-<br />您也可以从备份中上传 <i>playlist.csv</i><br />和 <i>wifi.csv</i> 文件</span>
+<span>-= 可选 =-<br />您也可以从备份中上传 <i>playlist.m3u</i>、<i>playlist.csv</i><br />和 <i>wifi.csv</i> 文件</span>
 <p><label for="data">wifi:</label><input type="file" name="data" id="data" multiple></p>
 <hr />
 <p><input type="submit" name="submit" value="上传文件"></p>

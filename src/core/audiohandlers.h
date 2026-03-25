@@ -112,6 +112,11 @@ void audio_eof_mp3(const char *info){  //end of file
 void audio_eof_stream(const char *info){
   player.sendCommand({PR_STOP, 0});
   if(!player.resumeAfterUrl) return;
+  // 会话级保护：连续失败超过3次时停止自动重试
+  if(player.getConsecutiveFails() >= 3) {
+    telnet.printf("##ERROR#:\tStream ended, consecutive fails=%d, stopping auto-retry\n", player.getConsecutiveFails());
+    return;
+  }
   if (config.getMode()==PM_WEB){
     player.sendCommand({PR_PLAY, config.lastStation()});
   }else{

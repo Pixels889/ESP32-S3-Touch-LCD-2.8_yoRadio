@@ -3,6 +3,8 @@
 https://www.waveshare.net/wiki/ESP32-S3-Touch-LCD-2.8 
 汉化（包括网络端）；
 音量调节做了映射。
+添加支持M3U格式播放，playlist.csv文件与playlist.m3u同时存在时只初始化M3U列表。
+遇到链接不畅的电台重启3次就不在自动播放。
 
 触摸控制播放列表（长按左上部分打开电台列表，长按右上部分打开sd卡列表，滑动选择单击后，中间高亮选中项开始播放）；
 播放控制（点击播放或暂停，上半部分左滑列表下一项，右滑上一项）；
@@ -17,5 +19,6 @@ https://www.waveshare.net/wiki/ESP32-S3-Touch-LCD-2.8
 目的：增大spiffs空间，便于存放更多电台的playlist.csv文件（minimal spiffs空间只有190kb）
 方法：https://wiki.makerfabs.com/Larger%20flash%20and%20memory.html
 ![](images/2026-03-23-22-26-37.png)
+![alt text](images/微信图片_20260326015200_113_156.jpg)
 ![图 1](images/81fc1df6bf7910a693372467c41423b3e5929c25f1696494e19c31b77e993653.png)  
 ![图 2](images/f0acab743abd15418191b2e56a2998a4fed323f9530576fac637c29a04bb42b0.png)  

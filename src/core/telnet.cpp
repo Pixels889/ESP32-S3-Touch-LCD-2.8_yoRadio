@@ -278,16 +278,26 @@ void Telnet::on_input(const char* str, uint8_t clientId) {
     }
     if (strcmp(str, "cli.list") == 0 || strcmp(str, "list") == 0) {
       printf(clientId, "#CLI.LIST#\n");
-      File file = SPIFFS.open(PLAYLIST_PATH, "r");
+      File file = SPIFFS.open(config.getPlayListPath(), "r");
       if (!file || file.isDirectory()) {
         return;
       }
-      int sOvol;
       uint8_t c = 1;
-      while (file.available()) {
-        if (config.parseCSV(file.readStringUntil('\n').c_str(), config.tmpBuf, config.tmpBuf2, sOvol)) {
-          printf(clientId, "#CLI.LISTNUM#: %*d: %s, %s\n", 3, c, config.tmpBuf, config.tmpBuf2);
-          c++;
+      if (config.isPlaylistM3U()) {
+        static char mGroup[BUFLEN], mLogo[BUFLEN];
+        while (file.available()) {
+          if (config.parseM3U(file, config.tmpBuf, config.tmpBuf2, mGroup, mLogo)) {
+            printf(clientId, "#CLI.LISTNUM#: %*d: %s [%s], %s\n", 3, c, config.tmpBuf, mGroup, config.tmpBuf2);
+            c++;
+          }
+        }
+      } else {
+        int sOvol;
+        while (file.available()) {
+          if (config.parseCSV(file.readStringUntil('\n').c_str(), config.tmpBuf, config.tmpBuf2, sOvol)) {
+            printf(clientId, "#CLI.LISTNUM#: %*d: %s, %s\n", 3, c, config.tmpBuf, config.tmpBuf2);
+            c++;
+          }
         }
       }
       printf(clientId, "##CLI.LIST#\n");

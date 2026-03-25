@@ -11,7 +11,8 @@
 #define EEPROM_START      500
 #define EEPROM_START_IR   0
 #define EEPROM_START_2    10
-#define PLAYLIST_PATH     "/data/playlist.csv"
+#define PLAYLIST_M3U_PATH  "/data/playlist.m3u"
+#define PLAYLIST_CSV_PATH  "/data/playlist.csv"
 #define SSIDS_PATH        "/data/wifi.csv"
 #define TMP_PATH          "/data/tmpfile.txt"
 #define INDEX_PATH        "/data/index.dat"
@@ -19,7 +20,7 @@
 #define PLAYLIST_SD_PATH     "/data/playlistsd.csv"
 #define INDEX_SD_PATH        "/data/indexsd.dat"
 
-#define REAL_PLAYL   config.getMode()==PM_WEB?PLAYLIST_PATH:PLAYLIST_SD_PATH
+#define REAL_PLAYL   config.getMode()==PM_WEB?config.getPlayListPath():PLAYLIST_SD_PATH
 #define REAL_INDEX   config.getMode()==PM_WEB?INDEX_PATH:INDEX_SD_PATH
 
 #define MAX_PLAY_MODE   1
@@ -157,6 +158,8 @@ struct station_t
   char name[BUFLEN];
   char url[BUFLEN];
   char title[BUFLEN];
+  char group[BUFLEN];
+  char logo[BUFLEN];
   uint16_t bitrate;
   int  ovol;
 };
@@ -188,6 +191,7 @@ class Config {
     uint16_t sleepfor;
     uint32_t sdResumePos;
     bool     emptyFS;
+    bool     _isM3U;
     uint16_t vuThreshold;
     uint16_t screensaverTicks;
     uint16_t screensaverPlayingTicks;
@@ -216,6 +220,8 @@ class Config {
     void setStation(const char* station);
     void escapeQuotes(const char* input, char* output, size_t maxLen);
     bool parseCSV(const char* line, char* name, char* url, int &ovol);
+    bool parseM3UExtinf(const char* line, char* name, char* group, char* logo);
+    bool parseM3U(File& playlist, char* name, char* url, char* group, char* logo);
     bool parseJSON(const char* line, char* name, char* url, int &ovol);
     bool parseWsCommand(const char* line, char* cmd, char* val, uint8_t cSize);
     bool parseSsid(const char* line, char* ssid, char* pass);
@@ -231,6 +237,8 @@ class Config {
     void initSDPlaylist();
     void changeMode(int newmode=-1);
     uint16_t playlistLength();
+    const char* getPlayListPath() { return _isM3U ? PLAYLIST_M3U_PATH : PLAYLIST_CSV_PATH; }
+    bool isPlaylistM3U() { return _isM3U; }
     uint16_t lastStation(){
       return getMode()==PM_WEB?store.lastStation:store.lastSdStation;
     }

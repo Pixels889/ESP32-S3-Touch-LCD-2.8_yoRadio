@@ -1155,52 +1155,92 @@ uint8_t PlayListWidget::_fillPlMenu(int from, uint8_t count) {
         return 0;
     }
 
-    char lineBuf[BUFLEN];  // 固定缓冲区，大小由 BUFLEN 决定
+    if (config.getMode() == PM_WEB) {
+        // WEB 模式：M3U 格式，使用 parseM3U 逐个提取电台名
+        while (true) {
+            esp_task_wdt_reset();
 
-    while (true) {
-        esp_task_wdt_reset();  // 防止看门狗超时
-
-        if (ls < 1) {
-            ls++;
-            _printPLitem(c, "");
-            c++;
-            continue;
-        }
-
-        if (!finded) {
-            index.seek((ls - 1) * 4, SeekSet);
-            uint32_t pos;
-            if (index.readBytes((char*)&pos, 4) != 4) {
-                Serial.println("Error reading index file");
-                break;
+            if (ls < 1) {
+                ls++;
+                _printPLitem(c, "");
+                c++;
+                continue;
             }
-            finded = true;
-            index.close();
-            playlist.seek(pos, SeekSet);
-        }
 
-        while (playlist.available()) {
-            // 读取一行到 lineBuf
-            int len = playlist.readBytesUntil('\n', (uint8_t*)lineBuf, BUFLEN - 1);
-            if (len <= 0) break;
-            lineBuf[len] = '\0';
-
-            // 查找制表符并截断，只保留电台名称部分
-            char* tabPos = strchr(lineBuf, '\t');
-            if (tabPos) *tabPos = '\0';
-
-            // 如果需要显示序号，构建带序号的字符串
-            if (config.store.numplaylist && strlen(lineBuf) > 0) {
-                char numbered[BUFLEN];
-                snprintf(numbered, BUFLEN, "%d %s", from + c, lineBuf);
-                _printPLitem(c, numbered);
-            } else {
-                _printPLitem(c, lineBuf);
+            if (!finded) {
+                index.seek((ls - 1) * 4, SeekSet);
+                uint32_t pos;
+                if (index.readBytes((char*)&pos, 4) != 4) {
+                    Serial.println("Error reading index file");
+                    break;
+                }
+                finded = true;
+                index.close();
+                playlist.seek(pos, SeekSet);
             }
-            c++;
-            if (c >= count) break;
+
+            // 用 parseM3U 逐条读取电台（static 避免栈溢出，BUFLEN=512*4=2048 字节）
+            static char mName[BUFLEN], mUrl[BUFLEN], mGroup[BUFLEN], mLogo[BUFLEN];
+            while (playlist.available() && c < count) {
+                if (config.parseM3U(playlist, mName, mUrl, mGroup, mLogo)) {
+                    if (config.store.numplaylist && strlen(mName) > 0) {
+                        static char numbered[BUFLEN];
+                        snprintf(numbered, BUFLEN, "%d %s", from + c, mName);
+                        _printPLitem(c, numbered);
+                    } else {
+                        _printPLitem(c, mName);
+                    }
+                    c++;
+                }
+            }
+            break;
         }
-        break;
+    } else {
+        // SD 卡模式：CSV 格式 (name\tpath\t0)
+        char lineBuf[BUFLEN];
+
+        while (true) {
+            esp_task_wdt_reset();
+
+            if (ls < 1) {
+                ls++;
+                _printPLitem(c, "");
+                c++;
+                continue;
+            }
+
+            if (!finded) {
+                index.seek((ls - 1) * 4, SeekSet);
+                uint32_t pos;
+                if (index.readBytes((char*)&pos, 4) != 4) {
+                    Serial.println("Error reading index file");
+                    break;
+                }
+                finded = true;
+                index.close();
+                playlist.seek(pos, SeekSet);
+            }
+
+            while (playlist.available()) {
+                int len = playlist.readBytesUntil('\n', (uint8_t*)lineBuf, BUFLEN - 1);
+                if (len <= 0) break;
+                lineBuf[len] = '\0';
+
+                char* tabPos = strchr(lineBuf, '\t');
+                if (tabPos) *tabPos = '\0';
+
+                if (config.store.numplaylist && strlen(lineBuf) > 0) {
+                    char numbered[BUFLEN];
+                    snprintf(numbered, BUFLEN, "%d %s", from + c, lineBuf);
+                    _printPLitem(c, numbered);
+                } else {
+                    _printPLitem(c, lineBuf);
+                }
+                c++;
+                if (c >= count) break;
+            }
+            break;
+        }
     }
 
     playlist.close();

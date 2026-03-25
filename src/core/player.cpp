@@ -21,10 +21,43 @@
 #include "timekeeper.h"
 #include "../displays/tools/l10n.h"
 #include "../pluginsManager/pluginsManager.h"
+#include <FS.h>
+#include <SPIFFS.h>
+
+// SPIFFS 持久化的失败计数器（所有复位类型都能保留）
+#define FAIL_COUNT_PATH "/failcnt"
+uint8_t _bootFailCount = 0;
+uint32_t _lastFailStation = 0;
+
+void loadFailCount() {
+  File f = SPIFFS.open(FAIL_COUNT_PATH, "r");
+  if (f) {
+    _bootFailCount = f.read();
+    _lastFailStation = f.read() | (f.read() << 8) | (f.read() << 16) | (f.read() << 24);
+    f.close();
+  }
+}
+
+void saveFailCount() {
+  File f = SPIFFS.open(FAIL_COUNT_PATH, "w");
+  if (f) {
+    f.write(_bootFailCount);
+    f.write(_lastFailStation & 0xFF);
+    f.write((_lastFailStation >> 8) & 0xFF);
+    f.write((_lastFailStation >> 16) & 0xFF);
+    f.write((_lastFailStation >> 24) & 0xFF);
+    f.close();
+  }
+}
+
+void clearFailCount() {
+  _bootFailCount = 0;
+  _lastFailStation = 0;
+  SPIFFS.remove(FAIL_COUNT_PATH);
+}
 #ifdef USE_NEXTION
 #include "../displays/nextion.h"
 #endif
-
 
 
 
@@ -59,6 +92,10 @@ void Player::init() {
   playerQueue=NULL;
   _resumeFilePos = 0;
   _hasError=false;
+  _consecutiveFails = 0;
+  _playStartTime = 0;
+  loadFailCount();  // 从SPIFFS加载失败计数
+  Serial.printf("bootFailCount=%d, lastFailStation=%d\n", _bootFailCount, _lastFailStation);
   playerQueue = xQueueCreate( 5, sizeof( playerRequestParams_t ) );
   setOutputPins(false);
   delay(50);
@@ -275,6 +312,14 @@ void Player::loop() {
     lastRunningState = isRunningNowCheck;
   }
   
+  // 稳定播放30秒后清零失败计数器（证明连接真正可靠）
+  if (_status == PLAYING && _consecutiveFails > 0 && _playStartTime > 0 && (millis() - _playStartTime) > 30000) {
+    _consecutiveFails = 0;
+    _playStartTime = 0;
+    clearFailCount();  // 从SPIFFS删除失败计数文件
+    telnet.printf("##STATUS#:\tStable playback for 30s, fail counters reset\n");
+  }
+  
   // 音量保存定时器
   if(_volTimer && (millis() - _volTicks) > 3000){
     config.saveVolume();
@@ -309,6 +354,14 @@ void Player::_play(uint16_t stationId) {
   bool isConnected = false;
   uint32_t connectStart = millis();
   
+  // 在尝试连接前递增失败计数器（SPIFFS持久化+会话级）
+  _consecutiveFails++;
+  _bootFailCount++;
+  _lastFailStation = stationId;
+  saveFailCount();  // 立即写入SPIFFS，即使崩溃也不会丢失
+  telnet.printf("##STATUS#:\tAttempting station %d, session fails: %d, boot fails: %d\n", 
+                stationId, _consecutiveFails, _bootFailCount);
+  
   // 根据模式选择连接方式
   if(config.getMode() == PM_SDCARD && SDC_CS != 255) {
     uint32_t resumePos = (config.sdResumePos == 0) ? _resumeFilePos : (config.sdResumePos - player.sd_min);
@@ -331,6 +384,7 @@ void Player::_play(uint16_t stationId) {
   
   if(isConnected) {
     _status = PLAYING;
+    _playStartTime = millis();  // 记录播放开始时间，loop()中30秒稳定后才清零计数器
     config.configPostPlaying(stationId);
     setOutputPins(true);
     
@@ -345,9 +399,22 @@ void Player::_play(uint16_t stationId) {
     }
   } else {
     // ========== 播放失败处理 ==========
+    // 计数器已在连接前递增，此处只做日志
+    telnet.printf("##ERROR#:\tConnection failed, fail count: %d, station: %d\n", _bootFailCount, stationId);
+
     if(config.getMode() == PM_SDCARD) {
       // SD卡文件播放失败
       telnet.printf("##ERROR#:\tSD file playback failed: %s\n", config.station.url);
+      
+      // 防止死循环：连续失败超过3次，禁用自动播放并跳到下一个电台
+      if (_consecutiveFails >= 3 || _bootFailCount >= 3) {
+        telnet.printf("##ERROR#:\tToo many failures, disabling autoplay, switching station\n");
+        config.setSmartStart(0);
+        clearFailCount();
+        // 尝试播放下一个电台
+        next();
+        return;
+      }
       
       // 显示错误信息
       char errMsg[64];
@@ -361,12 +428,20 @@ void Player::_play(uint16_t stationId) {
       display.putRequest(SHUTDOWN_PROMPT, 0);
       vTaskDelay(3000);
       
-      // 重启系统
+      // 重启系统（smartstart 会被保留，由 setup() 中的防循环逻辑保护）
       ESP.restart();
     } else {
       // WEB模式播放失败
-      telnet.printf("##ERROR#:\tNetwork connection failed\n");
+      telnet.printf("##ERROR#:\tNetwork connection failed, session fails: %d\n", _consecutiveFails);
       setError("Connection failed");
+      
+      // 防止死循环：会话内连续失败超过3次，强制禁用自动播放
+      if (_consecutiveFails >= 3 || _bootFailCount >= 3) {
+        telnet.printf("##ERROR#:\tToo many failures (session=%d, boot=%d), disabling autoplay\n", _consecutiveFails, _bootFailCount);
+        config.setSmartStart(0);
+        _consecutiveFails = 0;
+        clearFailCount();
+      }
       
       if(_status != STOPPED) {
         _stop(true);

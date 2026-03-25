@@ -45,6 +45,8 @@ class Player: public Audio {
     uint16_t    _currentIndex;  // 当前播放索引
     playMode_e  _currentMode;   // 当前播放模式
     bool        _hasError;      // 错误标志
+    uint8_t     _consecutiveFails = 0;  // 会话级连续失败计数（不随连接成功清零，只稳定播放30秒后清零）
+    uint32_t    _playStartTime = 0;     // 当前播放开始时间（用于判断稳定播放）
     
     // 音量映射表（声压级到人耳听感曲线）
     static const uint8_t _volumeMap[255];
@@ -109,6 +111,7 @@ class Player: public Audio {
     void stopInfo();
     void setOutputPins(bool isPlaying);
     void setResumeFilePos(uint32_t pos) { _resumeFilePos = pos; }
+    uint8_t getConsecutiveFails() const { return _consecutiveFails; }
 };
 
 // 全局对象声明

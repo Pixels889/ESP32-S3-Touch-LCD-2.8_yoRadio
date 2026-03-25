@@ -54,7 +54,7 @@ void mqttPublishPlaylist() {
   if(mqttClient.connected()){
     zeroBuffer();
     sprintf(topic, "%s%s", MQTT_ROOT_TOPIC, "playlist");
-    sprintf(status, "http://%s%s", config.ipToStr(WiFi.localIP()), PLAYLIST_PATH);
+    sprintf(status, "http://%s%s", config.ipToStr(WiFi.localIP()), config.getPlayListPath());
     mqttClient.publish(topic, 0, true, status);
   }
 }

@@ -121,7 +121,17 @@ void setup() {
   if (config.getMode()==PM_SDCARD) player.initHeaders(config.station.url);
   player.lockOutput=false;
   if (config.store.smartstart == 1) {
-    player.sendCommand({PR_PLAY, config.lastStation()});
+    // 防止播放失败导致的死循环重启（SPIFFS持久化计数器，所有复位类型都能保留）
+    // 在 player.init() 中已从SPIFFS加载 _bootFailCount
+    extern uint8_t _bootFailCount;
+    if (_bootFailCount >= 3) {
+      Serial.printf("##[BOOT]#\tSkipping autoplay: %d boot failures\n", _bootFailCount);
+      config.setSmartStart(0);
+      extern void clearFailCount();
+      clearFailCount();
+    } else {
+      player.sendCommand({PR_PLAY, config.lastStation()});
+    }
   }
   pm.on_end_setup();
   enableCore0WDT();

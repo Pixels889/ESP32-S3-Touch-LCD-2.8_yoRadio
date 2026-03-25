@@ -393,7 +393,7 @@ void NetServer::onWsMessage(void *arg, uint8_t *data, size_t len, uint8_t client
 }
 
 void NetServer::getPlaylist(uint8_t clientId) {
-  sprintf(nsBuf, "{\"file\": \"http://%s%s\"}", config.ipToStr(WiFi.localIP()), PLAYLIST_PATH);
+  sprintf(nsBuf, "{\"file\": \"http://%s%s\"}", config.ipToStr(WiFi.localIP()), config.getPlayListPath());
   if (clientId == 0) { websocket.textAll(nsBuf); } else { websocket.text(clientId, nsBuf); }
 }
 
@@ -416,19 +416,51 @@ bool NetServer::importPlaylist() {
   char linePl[BUFLEN*3];
   int sOvol;
   _readPlaylistLine(tempfile, linePl, sizeof(linePl)-1);
-  if (config.parseCSV(linePl, nsBuf, nsBuf2, sOvol)) {
+
+  // 检测 M3U 格式
+  if (strncmp(linePl, "#EXTM3U", 7) == 0) {
+    // 直接是 M3U 文件，重命名即可
     tempfile.close();
-    SPIFFS.rename(TMP_PATH, PLAYLIST_PATH);
+    config._isM3U = true;
+    SPIFFS.rename(TMP_PATH, PLAYLIST_M3U_PATH);
+    config.indexPlaylist();
     requestOnChange(PLAYLISTSAVED, 0);
     return true;
   }
+
+  // 检测 JSON 格式，转换为 M3U
   if (config.parseJSON(linePl, nsBuf, nsBuf2, sOvol)) {
-    File playlistfile = SPIFFS.open(PLAYLIST_PATH, "w");
+    File playlistfile = SPIFFS.open(PLAYLIST_M3U_PATH, "w");
+    playlistfile.println("#EXTM3U");
+    snprintf(linePl, sizeof(linePl)-1, "#EXTINF:-1 tvg-id=\"\" tvg-name=\"\" tvg-logo=\"\" group-title=\"\",%s", nsBuf);
+    playlistfile.println(linePl);
+    playlistfile.println(nsBuf2);
+    while (tempfile.available()) {
+      _readPlaylistLine(tempfile, linePl, sizeof(linePl)-1);
+      if (config.parseJSON(linePl, nsBuf, nsBuf2, sOvol)) {
+        snprintf(linePl, sizeof(linePl)-1, "#EXTINF:-1 tvg-id=\"\" tvg-name=\"\" tvg-logo=\"\" group-title=\"\",%s", nsBuf);
+        playlistfile.println(linePl);
+        playlistfile.println(nsBuf2);
+      }
+    }
+    playlistfile.flush();
+    playlistfile.close();
+    tempfile.close();
+    SPIFFS.remove(TMP_PATH);
+    config._isM3U = true;
+    config.indexPlaylist();
+    requestOnChange(PLAYLISTSAVED, 0);
+    return true;
+  }
+
+  // 兼容旧 CSV 格式，保持 CSV（不转换，保持兼容性）
+  if (config.parseCSV(linePl, nsBuf, nsBuf2, sOvol)) {
+    File playlistfile = SPIFFS.open(PLAYLIST_CSV_PATH, "w");
     snprintf(linePl, sizeof(linePl)-1, "%s\t%s\t%d", nsBuf, nsBuf2, 0);
     playlistfile.println(linePl);
     while (tempfile.available()) {
       _readPlaylistLine(tempfile, linePl, sizeof(linePl)-1);
-      if (config.parseJSON(linePl, nsBuf, nsBuf2, sOvol)) {
+      if (config.parseCSV(linePl, nsBuf, nsBuf2, sOvol)) {
         snprintf(linePl, sizeof(linePl)-1, "%s\t%s\t%d", nsBuf, nsBuf2, 0);
         playlistfile.println(linePl);
       }
@@ -437,9 +469,12 @@ bool NetServer::importPlaylist() {
     playlistfile.close();
     tempfile.close();
     SPIFFS.remove(TMP_PATH);
+    config._isM3U = false;
+    config.indexPlaylist();
     requestOnChange(PLAYLISTSAVED, 0);
     return true;
   }
+
   tempfile.close();
   SPIFFS.remove(TMP_PATH);
   return false;
@@ -463,7 +498,8 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
     if (!index) {
       if(filename!="tempwifi.csv"){
         //player.sendCommand({PR_STOP, 0});
-        if(SPIFFS.exists(PLAYLIST_PATH)) SPIFFS.remove(PLAYLIST_PATH);
+        if(SPIFFS.exists(PLAYLIST_M3U_PATH)) SPIFFS.remove(PLAYLIST_M3U_PATH);
+        if(SPIFFS.exists(PLAYLIST_CSV_PATH)) SPIFFS.remove(PLAYLIST_CSV_PATH);
         if(SPIFFS.exists(INDEX_PATH)) SPIFFS.remove(INDEX_PATH);
         if(SPIFFS.exists(PLAYLIST_SD_PATH)) SPIFFS.remove(PLAYLIST_SD_PATH);
         if(SPIFFS.exists(INDEX_SD_PATH)) SPIFFS.remove(INDEX_SD_PATH);
@@ -512,7 +548,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
     if (!index) {
       player.sendCommand({PR_STOP, 0});
       String spath = "/www/";
-      if(filename=="playlist.csv" || filename=="wifi.csv") spath = "/data/";
+      if(filename=="playlist.m3u" || filename=="playlist.csv" || filename=="wifi.csv") spath = "/data/";
       request->_tempFile = SPIFFS.open(spath + filename , "w");
     }
     if (len) {
@@ -520,7 +556,8 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
     }
     if (final) {
       request->_tempFile.close();
-      if(filename=="playlist.csv") config.indexPlaylist();
+      if(filename=="playlist.m3u") { config._isM3U = true; config.indexPlaylist(); }
+      if(filename=="playlist.csv") { config._isM3U = false; config.indexPlaylist(); }
     }
   }
 }
@@ -550,17 +587,27 @@ void handleNotFound(AsyncWebServerRequest * request) {
   if(request->method() == HTTP_POST && request->url()=="/webboard" && config.emptyFS) { request->redirect("/"); ESP.restart(); return; }
   if (request->method() == HTTP_GET) {
     DBGVB("[%s] client ip=%s request of %s", __func__, config.ipToStr(request->client()->remoteIP()), request->url().c_str());
-    if (strcmp(request->url().c_str(), PLAYLIST_PATH) == 0 || 
+    if (strcmp(request->url().c_str(), config.getPlayListPath()) == 0 || 
+        strcmp(request->url().c_str(), PLAYLIST_M3U_PATH) == 0 ||
+        strcmp(request->url().c_str(), PLAYLIST_CSV_PATH) == 0 ||
         strcmp(request->url().c_str(), SSIDS_PATH) == 0 || 
         strcmp(request->url().c_str(), INDEX_PATH) == 0 || 
         strcmp(request->url().c_str(), TMP_PATH) == 0 || 
         strcmp(request->url().c_str(), PLAYLIST_SD_PATH) == 0 || 
         strcmp(request->url().c_str(), INDEX_SD_PATH) == 0) {
 #ifdef MQTT_ROOT_TOPIC
-      if (strcmp(request->url().c_str(), PLAYLIST_PATH) == 0) while (mqttplaylistblock) vTaskDelay(5);
+      if (strcmp(request->url().c_str(), config.getPlayListPath()) == 0 || strcmp(request->url().c_str(), PLAYLIST_M3U_PATH) == 0 || strcmp(request->url().c_str(), PLAYLIST_CSV_PATH) == 0) while (mqttplaylistblock) vTaskDelay(5);
 #endif
-      if(strcmp(request->url().c_str(), PLAYLIST_PATH) == 0 && config.getMode()==PM_SDCARD){
+      // 优先返回实际存在的播放列表文件
+      bool isPlaylistReq = (strcmp(request->url().c_str(), PLAYLIST_M3U_PATH) == 0 || 
+                           strcmp(request->url().c_str(), PLAYLIST_CSV_PATH) == 0 || 
+                           strcmp(request->url().c_str(), config.getPlayListPath()) == 0);
+      if(isPlaylistReq && config.getMode()==PM_SDCARD){
         netserver.chunkedHtmlPage("application/octet-stream", request, PLAYLIST_SD_PATH);
+      }else if(isPlaylistReq){
+        // 优先 M3U，如果没有则用 CSV
+        const char* realPath = SPIFFS.exists(PLAYLIST_M3U_PATH) ? PLAYLIST_M3U_PATH : PLAYLIST_CSV_PATH;
+        netserver.chunkedHtmlPage("application/octet-stream", request, realPath);
       }else{
         netserver.chunkedHtmlPage("application/octet-stream", request, request->url().c_str());
       }
@@ -570,7 +617,7 @@ void handleNotFound(AsyncWebServerRequest * request) {
   
   if (request->method() == HTTP_POST) {
     if(request->url()=="/webboard"){ request->redirect("/"); return; } // <--post files from /data/www
-    if(request->url()=="/upload"){ // <--upload playlist.csv or wifi.csv
+    if(request->url()=="/upload"){ // <--upload playlist.m3u or wifi.csv
       if (request->hasParam("plfile", true, true)) {
         netserver.importRequest = IMPL;
         request->send(200);

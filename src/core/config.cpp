@@ -73,6 +73,7 @@ void Config::init() {
   }
 #endif
   emptyFS = true;
+  _isM3U = true;  // 默认 M3U，initPlaylist 会重新检测
 #if IR_PIN!=255
     irindex=-1;
 #endif
@@ -739,16 +740,37 @@ void Config::setStation(const char* station) {
 }
 
 void Config::indexPlaylist() {
-  File playlist = SPIFFS.open(PLAYLIST_PATH, "r");
+  const char* plPath = getPlayListPath();
+  File playlist = SPIFFS.open(plPath, "r");
   if (!playlist) {
     return;
   }
-  int sOvol;
   File index = SPIFFS.open(INDEX_PATH, "w");
-  while (playlist.available()) {
-    uint32_t pos = playlist.position();
-    if (parseCSV(playlist.readStringUntil('\n').c_str(), tmpBuf, tmpBuf2, sOvol)) {
-      index.write((uint8_t *) &pos, 4);
+
+  if (_isM3U) {
+    // M3U 格式：索引 #EXTINF 行的位置
+    while (playlist.available()) {
+      uint32_t pos = playlist.position();
+      String line = playlist.readStringUntil('\n');
+      line.trim();
+      if (line.startsWith("#EXTINF:")) {
+        if (parseM3UExtinf(line.c_str(), tmpBuf, tmpBuf2, config.tmpBuf2)) {
+          index.write((uint8_t *) &pos, 4);
+        }
+      }
+    }
+  } else {
+    // CSV 格式：索引每行的位置
+    while (playlist.available()) {
+      uint32_t pos = playlist.position();
+      String line = playlist.readStringUntil('\n');
+      line.trim();
+      if (line.indexOf('\t') > 0) {
+        int sOvol;
+        if (parseCSV(line.c_str(), tmpBuf, tmpBuf2, sOvol)) {
+          index.write((uint8_t *) &pos, 4);
+        }
+      }
     }
   }
   index.close();
@@ -756,15 +778,67 @@ void Config::indexPlaylist() {
 }
 
 void Config::initPlaylist() {
-  //store.countStation = 0;
-  if (!SPIFFS.exists(INDEX_PATH)) indexPlaylist();
+  // 优先 M3U，没有则回退 CSV
+  _isM3U = SPIFFS.exists(PLAYLIST_M3U_PATH);
+  const char* plPath = getPlayListPath();
 
-  /*if (SPIFFS.exists(INDEX_PATH)) {
-    File index = SPIFFS.open(INDEX_PATH, "r");
-    store.countStation = index.size() / 4;
-    index.close();
-    saveValue(&store.countStation, store.countStation, true, true);
-  }*/
+  if (!SPIFFS.exists(plPath)) return;
+
+  // 检测索引是否需要重建
+  bool needReindex = !SPIFFS.exists(INDEX_PATH);
+  if (!needReindex) {
+    File pl = SPIFFS.open(plPath, "r");
+    if (pl) {
+      String first = pl.readStringUntil('\n');
+      first.trim();
+      pl.close();
+
+      if (_isM3U && first.startsWith("#EXTM3U")) {
+        // M3U 格式：验证索引指向的是 #EXTINF 行
+        File idx = SPIFFS.open(INDEX_PATH, "r");
+        if (idx && idx.size() > 0) {
+          uint32_t pos;
+          idx.readBytes((char*)&pos, 4);
+          idx.close();
+          pl = SPIFFS.open(plPath, "r");
+          if (pl && pos < pl.size()) {
+            pl.seek(pos, SeekSet);
+            String check = pl.readStringUntil('\n');
+            check.trim();
+            pl.close();
+            if (!check.startsWith("#EXTINF:")) {
+              needReindex = true;
+            }
+          } else { if (pl) pl.close(); }
+        } else { if (idx) idx.close(); }
+      } else if (!_isM3U) {
+        // CSV 格式：验证索引指向的是含 tab 的行
+        File idx = SPIFFS.open(INDEX_PATH, "r");
+        if (idx && idx.size() > 0) {
+          uint32_t pos;
+          idx.readBytes((char*)&pos, 4);
+          idx.close();
+          pl = SPIFFS.open(plPath, "r");
+          if (pl && pos < pl.size()) {
+            pl.seek(pos, SeekSet);
+            String check = pl.readStringUntil('\n');
+            check.trim();
+            pl.close();
+            if (check.startsWith("#") || check.indexOf('\t') < 0) {
+              needReindex = true;
+            }
+          } else { if (pl) pl.close(); }
+        } else { if (idx) idx.close(); }
+      } else {
+        // _isM3U 但文件不是 M3U 格式，回退到 CSV
+        _isM3U = false;
+        needReindex = true;
+      }
+    } else {
+      needReindex = true;
+    }
+  }
+  if (needReindex) indexPlaylist();
 }
 uint16_t Config::playlistLength(){
   uint16_t out = 0;
@@ -776,12 +850,13 @@ uint16_t Config::playlistLength(){
   return out;
 }
 bool Config::loadStation(uint16_t ls) {
-  int sOvol;
   uint16_t cs = playlistLength();
   if (cs == 0) {
     memset(station.url, 0, BUFLEN);
     memset(station.name, 0, BUFLEN);
-    strncpy(station.name, "ёRadio", BUFLEN);
+    memset(station.group, 0, BUFLEN);
+    memset(station.logo, 0, BUFLEN);
+    strncpy(station.name, "yoRadio", BUFLEN);
     station.ovol = 0;
     return false;
   }
@@ -795,13 +870,40 @@ bool Config::loadStation(uint16_t ls) {
   index.readBytes((char *) &pos, 4);
   index.close();
   playlist.seek(pos, SeekSet);
-  if (parseCSV(playlist.readStringUntil('\n').c_str(), tmpBuf, tmpBuf2, sOvol)) {
-    memset(station.url, 0, BUFLEN);
-    memset(station.name, 0, BUFLEN);
-    strncpy(station.name, tmpBuf, BUFLEN);
-    strncpy(station.url, tmpBuf2, BUFLEN);
-    station.ovol = sOvol;
-    setLastStation(ls);
+
+  memset(station.url, 0, BUFLEN);
+  memset(station.name, 0, BUFLEN);
+  memset(station.group, 0, BUFLEN);
+  memset(station.logo, 0, BUFLEN);
+
+  if (getMode() == PM_WEB) {
+    if (_isM3U) {
+      // WEB 模式 M3U 格式
+      if (parseM3U(playlist, tmpBuf, tmpBuf2, station.group, station.logo)) {
+        strncpy(station.name, tmpBuf, BUFLEN);
+        strncpy(station.url, tmpBuf2, BUFLEN);
+        station.ovol = 0;
+        setLastStation(ls);
+      }
+    } else {
+      // WEB 模式 CSV 格式 (name\turl\tovol)
+      int sOvol;
+      if (parseCSV(playlist.readStringUntil('\n').c_str(), tmpBuf, tmpBuf2, sOvol)) {
+        strncpy(station.name, tmpBuf, BUFLEN);
+        strncpy(station.url, tmpBuf2, BUFLEN);
+        station.ovol = sOvol;
+        setLastStation(ls);
+      }
+    }
+  } else {
+    // SD 卡模式：CSV 格式 (name\tfilepath\tovol)
+    int sOvol;
+    if (parseCSV(playlist.readStringUntil('\n').c_str(), tmpBuf, tmpBuf2, sOvol)) {
+      strncpy(station.name, tmpBuf, BUFLEN);
+      strncpy(station.url, tmpBuf2, BUFLEN);
+      station.ovol = sOvol;
+      setLastStation(ls);
+    }
   }
   playlist.close();
   return true;
@@ -816,7 +918,27 @@ char * Config::stationByNum(uint16_t num){
   index.readBytes((char *) &pos, 4);
   index.close();
   playlist.seek(pos, SeekSet);
-  strncpy(_stationBuf, playlist.readStringUntil('\t').c_str(), sizeof(_stationBuf));
+
+  if (getMode() == PM_WEB) {
+    if (_isM3U) {
+      // WEB 模式 M3U 格式
+      if (parseM3U(playlist, _stationBuf, tmpBuf, ipBuf, config.tmpBuf2)) {
+        // _stationBuf 已包含电台名
+      }
+    } else {
+      // WEB 模式 CSV 格式
+      int sOvol;
+      if (parseCSV(playlist.readStringUntil('\n').c_str(), _stationBuf, tmpBuf, sOvol)) {
+        // _stationBuf 已包含电台名
+      }
+    }
+  } else {
+    // SD 卡模式：CSV 格式，第一列是文件名
+    int sOvol;
+    if (parseCSV(playlist.readStringUntil('\n').c_str(), _stationBuf, tmpBuf, sOvol)) {
+      // _stationBuf 已包含文件名
+    }
+  }
   playlist.close();
   return _stationBuf;
 }
@@ -852,6 +974,103 @@ bool Config::parseCSV(const char* line, char* name, char* url, int &ovol) {
   strlcpy(buf, cursor, 4);
   ovol = atoi(buf);
   return true;
+}
+
+// 从 #EXTINF 行提取 tvg-name, group-title, tvg-logo, 以及逗号后的电台名
+bool Config::parseM3UExtinf(const char* line, char* name, char* group, char* logo) {
+  name[0] = '\0';
+  group[0] = '\0';
+  logo[0] = '\0';
+
+  // 提取 group-title="..."
+  const char* p = strstr(line, "group-title=\"");
+  if (p) {
+    p += strlen("group-title=\"");
+    const char* e = strstr(p, "\"");
+    if (e && (e - p) > 0) {
+      strlcpy(group, p, e - p + 1);
+    }
+  }
+
+  // 提取 tvg-logo="..."
+  p = strstr(line, "tvg-logo=\"");
+  if (p) {
+    p += strlen("tvg-logo=\"");
+    const char* e = strstr(p, "\"");
+    if (e && (e - p) > 0) {
+      strlcpy(logo, p, e - p + 1);
+    }
+  }
+
+  // 提取 tvg-name="..."
+  p = strstr(line, "tvg-name=\"");
+  if (p) {
+    p += strlen("tvg-name=\"");
+    const char* e = strstr(p, "\"");
+    if (e && (e - p) > 0) {
+      strlcpy(name, p, e - p + 1);
+    }
+  }
+
+  // 如果 tvg-name 为空，使用逗号后的文本作为名称
+  if (strlen(name) == 0) {
+    const char* comma = strchr(line, ',');
+    if (comma && *(comma + 1) != '\0') {
+      comma++;
+      strlcpy(name, comma, BUFLEN);
+    }
+  }
+
+  // 去除名称首尾空白和换行
+  size_t len = strlen(name);
+  while (len > 0 && (name[len-1] == '\r' || name[len-1] == '\n' || name[len-1] == ' '))
+    name[--len] = '\0';
+  // 去除开头空白
+  const char* s = name;
+  while (*s == ' ') s++;
+  if (s != name) {
+    memmove(name, s, strlen(s) + 1);
+  }
+
+  return (strlen(name) > 0);
+}
+
+// 从文件当前位置读取一个完整的 M3U 条目（#EXTINF + URL），返回 true 表示成功
+bool Config::parseM3U(File& playlist, char* name, char* url, char* group, char* logo) {
+  name[0] = '\0';
+  url[0] = '\0';
+  group[0] = '\0';
+  logo[0] = '\0';
+
+  while (playlist.available()) {
+    String line = playlist.readStringUntil('\n');
+    line.trim();
+
+    // 跳过空行和注释行（非 #EXTINF）
+    if (line.length() == 0) continue;
+    if (line[0] == '#') {
+      if (line.startsWith("#EXTINF:")) {
+        // 解析 #EXTINF 行
+        if (!parseM3UExtinf(line.c_str(), name, group, logo)) {
+          continue;
+        }
+        // 读取下一行作为 URL
+        while (playlist.available()) {
+          String urlLine = playlist.readStringUntil('\n');
+          urlLine.trim();
+          if (urlLine.length() > 0 && urlLine[0] != '#') {
+            strlcpy(url, urlLine.c_str(), BUFLEN);
+            break;
+          }
+        }
+        return (strlen(url) > 0);
+      }
+      // 其他 # 开头的行，跳过
+      continue;
+    }
+    // 不是 # 开头也不是 EXTINF 后面的行，跳过（可能是孤立的 URL）
+  }
+  return false;
 }
 
 bool Config::parseJSON(const char* line, char* name, char* url, int &ovol) {
